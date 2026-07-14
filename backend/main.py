@@ -2,9 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
+import os
+from alembic import command
+from alembic.config import Config
 
-from database import engine, settings, Base, AsyncSessionLocal
-import models
+from database import engine, settings, AsyncSessionLocal
+import models  # noqa: F401 — ensures all tables are registered on Base.metadata
 import crud
 from routers import products, categories, admin as admin_router, orders as orders_router
 
@@ -12,10 +15,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def run_migrations() -> None:
+    """Apply Alembic migrations to head."""
+    cfg = Config("alembic.ini")
+    # alembic.ini lives next to main.py inside the container (/app)
+    if not os.path.exists("alembic.ini"):
+        logger.warning("alembic.ini not found, skipping migrations")
+        return
+    command.upgrade(cfg, "head")
+
+
 async def init_db():
-    """Create tables and seed default admin if not exists."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Apply migrations and seed default admin if not exists."""
+    run_migrations()
 
     async with AsyncSessionLocal() as db:
         existing = await crud.get_admin_by_login(db, settings.admin_default_login)
