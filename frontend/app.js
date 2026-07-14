@@ -410,6 +410,30 @@ if (isCatalogPage) {
   }
   window.openProduct = openProduct;
 
+  // Compact card for the "featured" recommendations row.
+  function renderFeaturedCard(p) {
+    const imgHtml = p.primary_image
+      ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy" class="sb-image-crop sb-image-crop_loaded lazy js-cart-goods-image" />`
+      : `<div class="card-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#f0f0f0;">🛍</div>`;
+
+    const badge = p.old_price && Number(p.old_price) > Number(p.price)
+      ? `<div style="position:absolute; top:8px; left:8px; background:#FFDD2D; color:#000; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px;">−${Math.round((1 - Number(p.price) / Number(p.old_price)) * 100)}%</div>`
+      : '';
+
+    return `
+      <div class="s-services-type-5__item sb-m-3-top sb-col_lg-3 sb-col_md-4 sb-col_sm-6 sb-col_xs-12">
+        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
+          <div class="s-services-type-5__image sb-image-square" style="position:relative;">
+            ${badge}${imgHtml}
+          </div>
+          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-left">${p.name}</h3>
+          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-left">${fmt(p.old_price)}</div>` : ''}
+          <div class="s-services-type-5__price sb-font-p3 sb-align-left">${fmt(p.price)}</div>
+        </div>
+      </div>
+    `;
+  }
+
   // Load categories
   async function loadCategories() {
     try {
@@ -449,6 +473,8 @@ if (isCatalogPage) {
       b.style.backgroundColor = String(b.dataset.id) === String(id) ? '#333' : 'transparent';
       b.style.color = String(b.dataset.id) === String(id) ? '#fff' : '#333';
     });
+    const showFeatured = !currentCategory && !currentSearch;
+    if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
     loadProducts(true);
   }
 
