@@ -106,6 +106,11 @@ class OrderStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class OrderType(str, enum.Enum):
+    catalog = "catalog"
+    design = "design"
+
+
 class Order(Base):
     __tablename__ = "orders"
 
@@ -115,6 +120,7 @@ class Order(Base):
     customer_contact = Column(String(200), nullable=False)  # phone or @username
     comment = Column(Text, nullable=True)
     status = Column(SAEnum(OrderStatus), default=OrderStatus.new, nullable=False)
+    order_type = Column(SAEnum(OrderType), default=OrderType.catalog, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

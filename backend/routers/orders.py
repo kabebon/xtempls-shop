@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+import json
+import logging
 
 from database import get_db, settings
 import crud
 from schemas import OrderCreate, OrderOut, TgUserRegister
 from notifications import notify_manager_new_order
+from telegram_auth import validate_init_data
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
@@ -35,15 +39,35 @@ async def register_tg_user(
 
 @router.post("/", response_model=OrderOut, status_code=201)
 async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
-    if not data.items and not (data.comment and "дизайн" in data.comment.lower()):
+    # A design request may legitimately have no items; a catalog order must have ≥1.
+    is_design = str(getattr(data, "order_type", "catalog")) == "design"
+    if not data.items and not is_design:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
 
-    order = await crud.create_order(db, data)
+    # Resolve a TRUSTED chat_id from the Telegram-signed initData.
+    # Ignore any tg_user_chat_id coming from the client body.
+    verified_chat_id: Optional[int] = None
+    if data.tg_init_data and settings.telegram_bot_token:
+        validated = validate_init_data(data.tg_init_data, settings.telegram_bot_token)
+        if validated:
+            try:
+                user = json.loads(validated.get("user", "{}"))
+                verified_chat_id = user.get("id")
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # If invalid/missing signature — still accept the order, just no chat_id.
+    data.tg_user_chat_id = verified_chat_id
+
+    try:
+        order = await crud.create_order(db, data)
+    except ValueError as e:
+        # Product(s) not found / inactive
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Notify manager asynchronously (don't fail request if notification fails)
     try:
         await notify_manager_new_order(order)
     except Exception:
-        pass
+        logger.exception("Manager notification failed for order #%s", order.id)
 
     return order

@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from decimal import Decimal
 from datetime import datetime
-from models import StockStatus
+from models import StockStatus, OrderType
 
 
 # ─── Category ────────────────────────────────────────────────────────────────
@@ -182,8 +182,10 @@ class TgUserOut(BaseModel):
 
 class OrderItemCreate(BaseModel):
     product_id: int
-    product_name: str
-    product_price: Decimal
+    # product_name / product_price are resolved server-side from the DB
+    # (never trust client-supplied prices). Kept optional for backwards compat.
+    product_name: Optional[str] = None
+    product_price: Optional[Decimal] = None
     size: Optional[str] = None
     quantity: int = Field(1, ge=1)
 
@@ -193,7 +195,9 @@ class OrderCreate(BaseModel):
     customer_contact: str = Field(..., max_length=200)
     comment: Optional[str] = None
     items: List[OrderItemCreate] = Field(default_factory=list)
-    tg_user_chat_id: Optional[int] = None
+    tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
+    tg_init_data: Optional[str] = None
+    order_type: OrderType = OrderType.catalog
 
 
 class OrderItemOut(BaseModel):
@@ -214,6 +218,7 @@ class OrderOut(BaseModel):
     customer_contact: str
     comment: Optional[str] = None
     status: str
+    order_type: str
     tg_user_chat_id: Optional[int] = None
     items: List[OrderItemOut] = []
     created_at: datetime

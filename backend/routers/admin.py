@@ -4,6 +4,7 @@ import aiofiles
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from PIL import Image
 import io
@@ -79,7 +80,10 @@ async def admin_create_category(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    return await crud.create_category(db, data)
+    try:
+        return await crud.create_category(db, data)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Категория с таким name/slug уже существует")
 
 
 @router.put("/admin/categories/{category_id}", response_model=CategoryOut)
@@ -89,7 +93,10 @@ async def admin_update_category(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    cat = await crud.update_category(db, category_id, data)
+    try:
+        cat = await crud.update_category(db, category_id, data)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Категория с таким name/slug уже существует")
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
     return cat
@@ -130,7 +137,10 @@ async def admin_create_product(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    return await crud.create_product(db, data)
+    try:
+        return await crud.create_product(db, data)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Товар с таким slug уже существует")
 
 
 @router.get("/admin/products/{product_id}", response_model=ProductOut)
@@ -155,7 +165,10 @@ async def admin_update_product(
     product = await crud.get_product(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    return await crud.update_product(db, product_id, data)
+    try:
+        return await crud.update_product(db, product_id, data)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Товар с таким slug уже существует")
 
 
 @router.delete("/admin/products/{product_id}", status_code=204)

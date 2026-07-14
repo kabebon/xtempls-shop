@@ -1,7 +1,9 @@
 import math
+from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from models import Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser, Order, OrderItem, OrderStatus
@@ -34,7 +36,11 @@ async def get_category(db: AsyncSession, category_id: int):
 async def create_category(db: AsyncSession, data: CategoryCreate):
     cat = Category(**data.model_dump())
     db.add(cat)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
     await db.refresh(cat)
     return cat
 
@@ -44,7 +50,11 @@ async def update_category(db: AsyncSession, category_id: int, data: CategoryUpda
     if not values:
         return await get_category(db, category_id)
     await db.execute(update(Category).where(Category.id == category_id).values(**values))
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
     return await get_category(db, category_id)
 
 
@@ -149,7 +159,11 @@ async def create_product(db: AsyncSession, data: ProductCreate):
         size = ProductSize(product_id=product.id, size=size_val, sort_order=i)
         db.add(size)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
     return await get_product(db, product.id)
 
 
@@ -166,7 +180,11 @@ async def update_product(db: AsyncSession, product_id: int, data: ProductUpdate)
             size = ProductSize(product_id=product_id, size=size_val, sort_order=i)
             db.add(size)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
     return await get_product(db, product_id)
 
 
@@ -232,9 +250,8 @@ async def create_admin(db: AsyncSession, login: str, password: str):
 
 
 async def update_last_login(db: AsyncSession, admin_id: int):
-    from datetime import datetime
     await db.execute(
-        update(AdminUser).where(AdminUser.id == admin_id).values(last_login=datetime.utcnow())
+        update(AdminUser).where(AdminUser.id == admin_id).values(last_login=datetime.now(timezone.utc))
     )
     await db.commit()
 
@@ -243,14 +260,13 @@ async def update_last_login(db: AsyncSession, admin_id: int):
 
 async def upsert_tg_user(db: AsyncSession, chat_id: int, username: str = None,
                          first_name: str = None, last_name: str = None):
-    from datetime import datetime
     result = await db.execute(select(TgUser).where(TgUser.chat_id == chat_id))
     user = result.scalar_one_or_none()
     if user:
         user.username = username
         user.first_name = first_name
         user.last_name = last_name
-        user.last_seen = datetime.utcnow()
+        user.last_seen = datetime.now(timezone.utc)
     else:
         user = TgUser(chat_id=chat_id, username=username,
                       first_name=first_name, last_name=last_name)
@@ -272,21 +288,36 @@ async def get_tg_users_count(db: AsyncSession) -> int:
 # ── Orders ──────────────────────────────────────────────────────────────────────────
 
 async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
+    # Resolve every item from the DB: we never trust client-supplied prices.
+    # Fetch all referenced products in one query.
+    product_ids = [item.product_id for item in data.items]
+    products_by_id: dict[int, Product] = {}
+    if product_ids:
+        result = await db.execute(select(Product).where(Product.id.in_(product_ids)))
+        for p in result.scalars().all():
+            products_by_id[p.id] = p
+
+    missing = [pid for pid in product_ids if pid not in products_by_id]
+    if missing:
+        raise ValueError(f"Products not found or inactive: {missing}")
+
     order = Order(
         tg_user_chat_id=data.tg_user_chat_id,
         customer_name=data.customer_name,
         customer_contact=data.customer_contact,
         comment=data.comment,
+        order_type=getattr(data, "order_type", None),
     )
     db.add(order)
     await db.flush()
 
     for item_data in data.items:
+        product = products_by_id[item_data.product_id]
         item = OrderItem(
             order_id=order.id,
             product_id=item_data.product_id,
-            product_name=item_data.product_name,
-            product_price=item_data.product_price,
+            product_name=product.name,            # snapshot from DB
+            product_price=product.price,          # price from DB, not from client
             size=item_data.size,
             quantity=item_data.quantity,
         )

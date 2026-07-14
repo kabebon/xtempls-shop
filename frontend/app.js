@@ -191,11 +191,9 @@ window.submitOrder = async function() {
       customer_name: name,
       customer_contact: contact,
       comment: comment || null,
-      tg_user_chat_id: tg?.initDataUnsafe?.user?.id || null,
+      tg_init_data: tg?.initData || null,
       items: cart.map(i => ({
         product_id: i.product_id,
-        product_name: i.product_name,
-        product_price: i.product_price,
         size: i.size,
         quantity: i.quantity,
       }))
@@ -617,6 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
           customer_name: name,
           customer_contact: phone,
           comment: 'Заявка на индивидуальный дизайн',
+          order_type: 'design',
+          tg_init_data: tg?.initData || null,
           items: [] // Empty items for design request
         };
 
