@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Вход</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">XTEMPLS</div>
+    <div class="login-sub">Панель администратора</div>
+
+    <form id="loginForm" autocomplete="on">
+      <div class="field-group">
+        <label class="field-label" for="login">Логин</label>
+        <input
+          class="field-input"
+          type="text"
+          id="login"
+          name="username"
+          autocomplete="username"
+          placeholder="Введите логин"
+          required
+        />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="password">Пароль</label>
+        <input
+          class="field-input"
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="Введите пароль"
+          required
+        />
+      </div>
+      <button class="btn-login" type="submit" id="loginBtn">Войти</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Redirect if already logged in
+  if (localStorage.getItem('admin_token')) {
+    window.location.href = 'dashboard.html';
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginError');
+    const login = document.getElementById('login').value.trim();
+    const password = document.getElementById('password').value;
+
+    btn.textContent = 'Вход...';
+    btn.disabled = true;
+    errEl.textContent = '';
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login, password })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        errEl.textContent = data.detail || 'Неверный логин или пароль';
+        return;
+      }
+
+      const data = await res.json();
+      localStorage.setItem('admin_token', data.access_token);
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      errEl.textContent = 'Ошибка соединения';
+    } finally {
+      btn.textContent = 'Войти';
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

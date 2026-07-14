@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Коллекция "BASIC" - XTEMPLS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <!-- Telegram Mini App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style id="inline-css">blockquote,body,button,code,dd,dl,dt,fieldset,form,h1,h2,h3,h4,h5,h6,html,input,legend,li,ol,p,pre,td,textarea,th,ul{padding:0;margin:0;font-weight:400}ol,ul{list-style:none}table{border-collapse:collapse;border-spacing:0}button,input,select,textarea{border:none;font-family:inherit;color:inherit;background:0 0;-webkit-appearance:none;appearance:none;outline:0}body,html{position:relative;width:100%;min-width:300px;height:100%;font-size:15px;font-weight:400;line-height:1.333;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;-ms-text-size-adjust:100%;-webkit-text-size-adjust:none;-webkit-overflow-scrolling:touch;word-wrap:break-word;word-break:break-word}html{-webkit-perspective:none!important}b,strong{font-weight:700!important}a{color:inherit}.sb-body_overflow{height:100%;overflow:hidden}.sb-body_overflow:after{content:"";position:fixed;top:0;left:0;z-index:98;width:100vw;height:100vh;background-color:rgba(51,51,51,.8)}.sb-body_with-footer .site-wrapper{box-sizing:border-box}.sb-body_hide-messenger{overflow:hidden}.sb-body_hide-messenger .messenger-button{display:none}.sb-padding-top_l{padding-top:72px}.sb-padding-top_m{padding-top:36px}.sb-padding-top_s{padding-top:20px}.sb-padding-bottom_l{padding-bottom:72px}.sb-padding-bottom_m{padding-bottom:36px}.sb-padding-bottom_s{padding-bottom:20px}.sb-hidden{display:none!important}@media screen and (max-width:639px){.sb-hidden-mobile{display:none!important}}@media screen and (min-width:300px){.sb-hidden-mobile-min{display:none!important}}@media (min-width:480px) and (max-width:639px){.sb-hidden-mobile-interval{display:none!important}}@media screen and (max-width:959px){.sb-body_with-footer .sb-block_fullscreen:only-child,.sb-body_with-footer .site-wrapper{min-height:calc(100vh - 44px)}.sb-hidden-tablet{display:none!important}}@media screen and (min-width:640px){.sb-hidden-tablet-min{display:none!important}}@media (min-width:640px) and (max-width:959px){.sb-hidden-tablet-interval{display:none!important}}@media screen and (max-width:1359px){.sb-hidden-desktop{display:none!important}}@media screen and (min-width:960px){.sb-body_with-footer .sb-block_fullscreen:only-child,.sb-body_with-footer .site-wrapper{min-height:calc(100vh - 60px)}.sb-hidden-desktop-min{display:none!important}}@media (min-width:960px) and (max-width:1359px){.sb-hidden-desktop-interval{display:none!important}}@media screen and (min-width:1360px){.sb-hidden-desktop-lg-min{display:none!important}}.sb-opacity{opacity:.4}.sb-align-center{text-align:center}.sb-align-left{text-align:left}.sb-pre-wrap{white-space:pre-wrap}.sb-text-ellipsis-focus:focus{text-overflow:clip!important}</style>
+    
+    <link rel="stylesheet" href="/assets/styles/styles-element.css">
+    <link rel="stylesheet" href="/assets/styles/styles-layout.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Oswald&subset=all&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans&subset=all&display=swap">
+    <link rel="stylesheet" href="/assets/styles/size-m.css">
+    <link rel="stylesheet" href="/assets/styles/header-type-2.css">
+    <link rel="stylesheet" href="/assets/styles/services-type-5.css">
+    <link rel="stylesheet" href="/assets/styles/footer-customer-type-5.css">
+    
+    <!-- Our Custom Overrides & Main Logic -->
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js" defer></script>
+</head>
+<body class="sb-body oswald__title open-sans-regular sb-content-size_m sb-buttons-border_round">
+
+<div class="site-wrapper" tabindex="0">
+    <section data-type="header" id="header" class="s-header-type-2 sb-text-dark">
+        <div class="sb-background" style="background: linear-gradient(0deg, #edf4ff, #ffffff);"></div>
+        <div class="sb-container">
+            <nav class="s-header-type-2__wrapper js-wrapper s-header-type-2__wrapper_separate s-header-type-2__wrapper_centered">
+                <h3 class="s-header-type-2__logo sb-align-center sb-font-h3 sb-font-title"><a href="/" class="sb-link"><b>Xtempls</b></a></h3>
+            </nav>
+        </div>
+    </section>
+
+    <section data-type="services" data-subtype="type-5" id="services" class="s-services-type-5 js-catalog sb-text-dark sb-align-center sb-padding-top_l sb-padding-bottom_s">
+        <div class="sb-background" style="background: linear-gradient(135deg, #edf0f6, #c9d6e8);"></div>
+        <div class="sb-container sb-m-clear-bottom">
+            <div class="sb-row sb-m-8-bottom">
+                <h3 class="sb-col_lg-8 sb-col-offset_lg-2 sb-col_md-12 sb-col_sm-12 sb-col_xs-12 sb-font-h3 sb-font-title">Каталог</h3>
+            </div>
+            
+            <!-- Category Chips generated by app.js -->
+            <div id="categories-container" class="sb-m-10-bottom" style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center;"></div>
+
+            <div class="js-catalog__content sb-m-clear-bottom">
+                <!-- Products Container generated by app.js -->
+                <div class="sb-row sb-m-3-top-minus js-catalog__goods-wrapper" id="products-container">
+                    <!-- Products will be injected here -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section data-type="footer-customer" id="footer-customer" class="s-footer-customer-type-5 sb-text-white sb-padding-top_m sb-padding-bottom_l">
+        <div class="sb-background" style="background: linear-gradient(#4C5A9E, #2E3359);"></div>
+        <div class="sb-container">
+            <div class="sb-row sb-m-clear-bottom">
+                <div class="s-footer-customer-type-5__logo-column sb-col_xs-12 sb-col_sm-12 sb-col_md-12 sb-m-clear-bottom sb-col_lg-4">
+                    <a href="/" target="_self" class="sb-logotype-wrapper s-footer-customer-type-5__image-wrapper sb-logotype-wrapper_fixed_size-xl_square">
+                        <img class="lazy sb-logotype-wrapper__image" src="/assets/img/9da29ba6-b753-4403-9e51-51118dc17c4a-16595393.png" alt="Изображение">
+                    </a>
+                    <div class="sb-text-opacity sb-font-p3"><b><font style="color: #ffffff;">XTEMPLS</font></b></div>
+                </div>
+                <div class="s-footer-customer-type-5__links sb-col_xs-12 sb-col_sm-12 sb-col_md-8 sb-col_lg-5">
+                    <nav class="sb-row s-footer-customer-type-5__links-row">
+                        <ul class="sb-col_xs-12 sb-col_sm-5 sb-col_md-6 sb-col_lg-5">
+                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/" class="s-footer-customer-type-5__link sb-font-p3">   Главная   </a></li>
+                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/catalog.html" class="s-footer-customer-type-5__link sb-font-p3">   "BASIC"   </a></li>
+                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/lyrics.html" class="s-footer-customer-type-5__link sb-font-p3">   "LYRICS"   </a></li>
+                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/public.html" class="s-footer-customer-type-5__link sb-font-p3">   Уголок покупателя   </a></li>
+                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/design.html" class="s-footer-customer-type-5__link sb-font-p3">   Свой дизайн   </a></li>
+                        </ul>
+                    </nav>
+                </div>
+                <div class="sb-col_xs-12 sb-col_sm-12 sb-col_md-4 sb-col_lg-3">
+                    <div class="sb-font-p3">Контакты: <br>Почта: <b>xtempls@yandex.ru</b><br>Телеграм: <b>@xtempls_wear</b><br></div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Cart Button Container (Managed by app.js) -->
+<div id="cartButtonContainer"></div>
+
+</body>
+</html>

@@ -1,0 +1,25 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.log
+.DS_Store
+Thumbs.db
+uploads/
+*.sqlite
+*.db
+ssl/
+certbot/
+node_modules/
+
+# Local dev artifacts (extracted source templates & dev helper scripts with hard-coded paths)
+xtempls-static/
+frontend/extract.js
+frontend/extract_gallery.js
+frontend/app_snippet.txt
+
+# Editor / IDE
+.vscode/
+.idea/

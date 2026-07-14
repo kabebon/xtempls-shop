@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Категории</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Дашборд
+    </a>
+    <a class="nav-item" href="products.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      Товары
+    </a>
+    <a class="nav-item active" href="categories.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+      </svg>
+      Категории
+    </a>
+    <a class="nav-item" href="orders.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      Заказы
+    </a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Категории</div>
+      <button class="btn btn-primary" onclick="openCatModal()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Добавить категорию
+      </button>
+    </div>
+    <div class="page-content" style="padding:0">
+      <div class="table-card" style="border-radius:0;border-left:none;border-right:none;border-bottom:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Название</th>
+                <th>Slug</th>
+                <th>Товаров</th>
+                <th>Активна</th>
+                <th>Сортировка</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="catsTable">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="catModalTitle">Добавить категорию</div>
+      <button class="modal-close" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="catForm">
+        <input type="hidden" id="catId" />
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Название *</label>
+          <input class="form-input" type="text" id="cName" required placeholder="Футболки" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Slug *</label>
+          <input class="form-input" type="text" id="cSlug" required placeholder="futbolki" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Описание</label>
+          <textarea class="form-textarea" id="cDesc" placeholder="Описание категории..." style="min-height:70px;"></textarea>
+        </div>
+        <div style="display:flex;gap:20px;align-items:center;margin-bottom:16px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;">
+            <input type="checkbox" id="cActive" checked /> Активна
+          </label>
+          <div class="form-group" style="flex:1;margin:0;">
+            <label class="form-label">Сортировка</label>
+            <input class="form-input" type="number" id="cSort" value="0" />
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCatModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveCat()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  async function loadCats() {
+    const res = await apiFetch('/api/admin/categories');
+    if (!res.ok) return;
+    const cats = await res.json();
+    const tbody = document.getElementById('catsTable');
+    if (cats.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px">Нет категорий</td></tr>';
+    } else {
+      tbody.innerHTML = cats.map(c => `
+        <tr>
+          <td style="color:var(--text-muted)">${c.id}</td>
+          <td><strong>${c.name}</strong></td>
+          <td><code style="font-size:12px;color:var(--text-sec)">${c.slug}</code></td>
+          <td>${c.product_count}</td>
+          <td>${c.is_active
+            ? '<span class="badge badge-green">Да</span>'
+            : '<span class="badge badge-gray">Нет</span>'}</td>
+          <td>${c.sort_order}</td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-secondary btn-icon" onclick="editCat(${c.id})" title="Редактировать">✏️</button>
+              <button class="btn btn-danger btn-icon" onclick="deleteCat(${c.id}, '${c.name.replace(/'/g, "\\'")}')" title="Удалить">🗑</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  window.openCatModal = function() {
+    document.getElementById('catModalTitle').textContent = 'Добавить категорию';
+    document.getElementById('catForm').reset();
+    document.getElementById('catId').value = '';
+    document.getElementById('cActive').checked = true;
+    document.getElementById('cSort').value = '0';
+    document.getElementById('catModal').classList.add('open');
+  };
+
+  window.closeCatModal = function() {
+    document.getElementById('catModal').classList.remove('open');
+  };
+
+  document.getElementById('cName').addEventListener('input', function() {
+    if (!document.getElementById('catId').value) {
+      document.getElementById('cSlug').value = this.value
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]/g, '')
+        .replace(/-+/g, '-');
+    }
+  });
+
+  window.editCat = async function(id) {
+    const res = await apiFetch(`/api/admin/categories`);
+    if (!res.ok) return;
+    const cats = await res.json();
+    const c = cats.find(x => x.id === id);
+    if (!c) return;
+
+    document.getElementById('catModalTitle').textContent = 'Редактировать категорию';
+    document.getElementById('catId').value = c.id;
+    document.getElementById('cName').value = c.name;
+    document.getElementById('cSlug').value = c.slug;
+    document.getElementById('cDesc').value = c.description || '';
+    document.getElementById('cActive').checked = c.is_active;
+    document.getElementById('cSort').value = c.sort_order;
+    document.getElementById('catModal').classList.add('open');
+  };
+
+  window.saveCat = async function() {
+    const id = document.getElementById('catId').value;
+    const body = {
+      name: document.getElementById('cName').value.trim(),
+      slug: document.getElementById('cSlug').value.trim(),
+      description: document.getElementById('cDesc').value.trim() || null,
+      is_active: document.getElementById('cActive').checked,
+      sort_order: parseInt(document.getElementById('cSort').value) || 0,
+    };
+
+    if (!body.name || !body.slug) { showToast('Заполните обязательные поля', 'error'); return; }
+
+    const url = id ? `/api/admin/categories/${id}` : '/api/admin/categories';
+    const method = id ? 'PUT' : 'POST';
+    const res = await apiFetch(url, { method, body: JSON.stringify(body) });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка', 'error');
+      return;
+    }
+
+    showToast(id ? 'Категория обновлена' : 'Категория создана', 'success');
+    closeCatModal();
+    loadCats();
+  };
+
+  window.deleteCat = function(id, name) {
+    if (!confirm(`Удалить категорию "${name}"?`)) return;
+    apiFetch(`/api/admin/categories/${id}`, { method: 'DELETE' }).then(res => {
+      if (res.ok || res.status === 204) {
+        showToast('Категория удалена', 'success');
+        loadCats();
+      } else {
+        showToast('Ошибка удаления', 'error');
+      }
+    });
+  };
+
+  document.getElementById('catModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCatModal();
+  });
+
+  loadCats();
+</script>
+</body>
+</html>
