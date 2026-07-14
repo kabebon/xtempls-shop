@@ -16,8 +16,11 @@ function requireAuth() {
 
 async function apiFetch(url, options = {}) {
   const token = getToken();
+  const isFormData = options.body instanceof FormData;
+
+  // Don't set Content-Type for FormData — the browser sets the boundary.
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };

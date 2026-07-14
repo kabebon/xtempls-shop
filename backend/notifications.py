@@ -3,13 +3,25 @@ Notifications module — sends Telegram messages via Bot API directly.
 Used by the backend to notify the manager on new orders
 and to broadcast messages to all users.
 """
+import asyncio
 import httpx
 import logging
+from datetime import datetime, timezone
 from database import settings
 
 logger = logging.getLogger(__name__)
 
 TG_API = "https://api.telegram.org"
+
+# In-memory status of the last broadcast run (single-writer: the background task).
+_broadcast_status: dict = {
+    "state": "idle",        # idle | running | done
+    "sent": 0,
+    "failed": 0,
+    "total": 0,
+    "started_at": None,
+    "finished_at": None,
+}
 
 
 async def send_message(chat_id: int, text: str, parse_mode: str = "HTML") -> bool:
@@ -75,7 +87,16 @@ async def notify_manager_new_order(order) -> bool:
 
 
 async def broadcast(chat_ids: list[int], text: str) -> dict:
-    """Send a message to multiple users. Returns stats."""
+    """Send a message to many users at a Telegram-safe rate.
+
+    Updates the in-memory _broadcast_status as it goes and returns final stats.
+    Rate: ~20 msg/s (well under Telegram's 30 msg/s bot limit).
+    """
+    _broadcast_status.update(
+        state="running", sent=0, failed=0, total=len(chat_ids),
+        started_at=datetime.now(timezone.utc).isoformat(), finished_at=None,
+    )
+
     sent = 0
     failed = 0
     for chat_id in chat_ids:
@@ -84,4 +105,18 @@ async def broadcast(chat_ids: list[int], text: str) -> dict:
             sent += 1
         else:
             failed += 1
+        _broadcast_status["sent"] = sent
+        _broadcast_status["failed"] = failed
+        # Pace the send rate to stay under Telegram's per-second limit.
+        await asyncio.sleep(0.05)
+
+    _broadcast_status.update(
+        state="done",
+        finished_at=datetime.now(timezone.utc).isoformat(),
+    )
     return {"sent": sent, "failed": failed, "total": len(chat_ids)}
+
+
+def get_broadcast_status() -> dict:
+    """Snapshot of the last/current broadcast run."""
+    return dict(_broadcast_status)

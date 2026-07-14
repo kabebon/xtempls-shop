@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import aiofiles
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
@@ -16,10 +17,11 @@ from schemas import (
     CategoryCreate, CategoryUpdate, CategoryOut,
     ProductCreate, ProductUpdate, ProductOut, ProductListResponse,
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
+    AdminUserCreate, AdminUserUpdate,
     OrderOut, OrderListResponse, OrderStatusUpdate, BroadcastRequest
 )
 from models import AdminUser
-from notifications import broadcast as tg_broadcast
+from notifications import broadcast as tg_broadcast, get_broadcast_status
 
 router = APIRouter(tags=["admin"])
 
@@ -337,9 +339,88 @@ async def admin_broadcast(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    """Send a Telegram message to all users who started the bot."""
+    """Queue a Telegram broadcast to all users who started the bot.
+
+    Runs in the background so the HTTP request returns immediately; poll
+    GET /admin/broadcast/status for progress.
+    """
     chat_ids = await crud.get_all_tg_chat_ids(db)
     if not chat_ids:
-        return {"sent": 0, "failed": 0, "total": 0, "message": "No users found"}
-    stats = await tg_broadcast(chat_ids, data.text)
-    return stats
+        return {"queued": 0, "message": "No users found"}
+    if get_broadcast_status().get("state") == "running":
+        raise HTTPException(status_code=409, detail="A broadcast is already running")
+    asyncio.create_task(tg_broadcast(chat_ids, data.text))
+    return {"queued": len(chat_ids)}
+
+
+@router.get("/admin/broadcast/status")
+async def admin_broadcast_status(
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Progress of the current/last broadcast."""
+    return get_broadcast_status()
+
+
+# ── Admin: Users ──────────────────────────────────────────────────────
+
+@router.get("/admin/users", response_model=List[AdminUserOut])
+async def admin_list_users(
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    return await crud.get_admins(db)
+
+
+@router.post("/admin/users", response_model=AdminUserOut, status_code=201)
+async def admin_create_user(
+    data: AdminUserCreate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    try:
+        return await crud.create_admin(db, data.login, data.password)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Логин уже занят")
+
+
+@router.put("/admin/users/{user_id}", response_model=AdminUserOut)
+async def admin_update_user(
+    user_id: int,
+    data: AdminUserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin)
+):
+    target = await crud.get_admin(db, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Cannot deactivate or delete yourself.
+    if user_id == current_admin.id and data.is_active is False:
+        raise HTTPException(status_code=400, detail="Нельзя деактивировать себя")
+
+    values = data.model_dump(exclude_unset=True)
+    password = values.pop("password", None)
+    if password:
+        values["password_hash"] = get_password_hash(password)
+
+    try:
+        updated = await crud.update_admin(db, user_id, values)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Логин уже занят")
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return updated
+
+
+@router.delete("/admin/users/{user_id}", status_code=204)
+async def admin_delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin)
+):
+    if user_id == current_admin.id:
+        raise HTTPException(status_code=400, detail="Нельзя удалить себя")
+    target = await crud.get_admin(db, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    await crud.delete_admin(db, user_id)

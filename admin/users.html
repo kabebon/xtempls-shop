@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Администраторы</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Дашборд
+    </a>
+    <a class="nav-item" href="products.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      Товары
+    </a>
+    <a class="nav-item" href="categories.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+      </svg>
+      Категории
+    </a>
+    <a class="nav-item" href="orders.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      Заказы
+    </a>
+    <a class="nav-item active" href="users.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Администраторы
+    </a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Администраторы</div>
+      <button class="btn btn-primary" onclick="openUserModal()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Добавить администратора
+      </button>
+    </div>
+    <div class="page-content" style="padding:0">
+      <div class="table-card" style="border-radius:0;border-left:none;border-right:none;border-bottom:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Логин</th>
+                <th>Активен</th>
+                <th>Создан</th>
+                <th>Последний вход</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="usersTable">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="userModalTitle">Добавить администратора</div>
+      <button class="modal-close" onclick="closeUserModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="userForm">
+        <input type="hidden" id="userId" />
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Логин *</label>
+          <input class="form-input" type="text" id="uLogin" required minlength="3" maxlength="50" placeholder="manager1" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" id="passwordLabel">Пароль *</label>
+          <input class="form-input" type="password" id="uPassword" minlength="6" maxlength="128" placeholder="Минимум 6 символов" />
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;">
+          <input type="checkbox" id="uActive" checked /> Активен
+        </div>
+        <div id="passwordHint" style="font-size:12px;color:var(--text-muted);margin-top:8px;display:none;">
+          Оставьте поле пароля пустым, чтобы не менять пароль.
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeUserModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="saveUser()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  async function loadUsers() {
+    const res = await apiFetch('/api/admin/users');
+    if (!res.ok) return;
+    const users = await res.json();
+    const tbody = document.getElementById('usersTable');
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px">Нет администраторов</td></tr>';
+    } else {
+      tbody.innerHTML = users.map(u => {
+        const created = u.created_at ? new Date(u.created_at).toLocaleDateString('ru-RU') : '—';
+        const last = u.last_login ? new Date(u.last_login).toLocaleString('ru-RU') : 'никогда';
+        return `
+          <tr>
+            <td style="color:var(--text-muted)">${u.id}</td>
+            <td><strong>${u.login}</strong></td>
+            <td>${u.is_active
+              ? '<span class="badge badge-green">Да</span>'
+              : '<span class="badge badge-gray">Нет</span>'}</td>
+            <td style="font-size:12px;color:var(--text-sec)">${created}</td>
+            <td style="font-size:12px;color:var(--text-sec)">${last}</td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-icon" onclick="editUser(${u.id})" title="Редактировать">✏️</button>
+                <button class="btn btn-danger btn-icon" onclick="deleteUser(${u.id}, '${u.login.replace(/'/g, "\\'")}')" title="Удалить">🗑</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  window.openUserModal = function() {
+    document.getElementById('userModalTitle').textContent = 'Добавить администратора';
+    document.getElementById('userForm').reset();
+    document.getElementById('userId').value = '';
+    document.getElementById('uActive').checked = true;
+    document.getElementById('passwordLabel').textContent = 'Пароль *';
+    document.getElementById('uPassword').required = true;
+    document.getElementById('uPassword').placeholder = 'Минимум 6 символов';
+    document.getElementById('passwordHint').style.display = 'none';
+    document.getElementById('userModal').classList.add('open');
+  };
+
+  window.closeUserModal = function() {
+    document.getElementById('userModal').classList.remove('open');
+  };
+
+  window.editUser = async function(id) {
+    const res = await apiFetch('/api/admin/users');
+    if (!res.ok) return;
+    const users = await res.json();
+    const u = users.find(x => x.id === id);
+    if (!u) return;
+
+    document.getElementById('userModalTitle').textContent = 'Редактировать администратора';
+    document.getElementById('userId').value = u.id;
+    document.getElementById('uLogin').value = u.login;
+    document.getElementById('uPassword').value = '';
+    document.getElementById('uActive').checked = u.is_active;
+    document.getElementById('passwordLabel').textContent = 'Новый пароль';
+    document.getElementById('uPassword').required = false;
+    document.getElementById('uPassword').placeholder = 'Оставьте пустым, чтобы не менять';
+    document.getElementById('passwordHint').style.display = 'block';
+    document.getElementById('userModal').classList.add('open');
+  };
+
+  window.saveUser = async function() {
+    const id = document.getElementById('userId').value;
+    const login = document.getElementById('uLogin').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const is_active = document.getElementById('uActive').checked;
+
+    if (!login) { showToast('Введите логин', 'error'); return; }
+
+    const isEdit = !!id;
+    if (!isEdit && !password) { showToast('Введите пароль', 'error'); return; }
+
+    const body = { login, is_active };
+    if (password) body.password = password;
+
+    const url = isEdit ? `/api/admin/users/${id}` : '/api/admin/users';
+    const method = isEdit ? 'PUT' : 'POST';
+    const res = await apiFetch(url, { method, body: JSON.stringify(body) });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка', 'error');
+      return;
+    }
+
+    showToast(isEdit ? 'Администратор обновлён' : 'Администратор создан', 'success');
+    closeUserModal();
+    loadUsers();
+  };
+
+  window.deleteUser = function(id, login) {
+    if (!confirm(`Удалить администратора "${login}"?`)) return;
+    apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' }).then(res => {
+      if (res.ok || res.status === 204) {
+        showToast('Администратор удалён', 'success');
+        loadUsers();
+      } else {
+        showToast('Ошибка удаления', 'error');
+      }
+    });
+  };
+
+  document.getElementById('userModal').addEventListener('click', function(e) {
+    if (e.target === this) closeUserModal();
+  });
+
+  loadUsers();
+</script>
+</body>
+</html>

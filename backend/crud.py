@@ -244,9 +244,41 @@ async def get_admin_by_login(db: AsyncSession, login: str):
 async def create_admin(db: AsyncSession, login: str, password: str):
     admin = AdminUser(login=login, password_hash=get_password_hash(password))
     db.add(admin)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
     await db.refresh(admin)
     return admin
+
+
+async def get_admins(db: AsyncSession) -> list[AdminUser]:
+    result = await db.execute(select(AdminUser).order_by(AdminUser.id))
+    return list(result.scalars().all())
+
+
+async def get_admin(db: AsyncSession, admin_id: int) -> Optional[AdminUser]:
+    result = await db.execute(select(AdminUser).where(AdminUser.id == admin_id))
+    return result.scalar_one_or_none()
+
+
+async def update_admin(db: AsyncSession, admin_id: int, values: dict) -> Optional[AdminUser]:
+    if not values:
+        return await get_admin(db, admin_id)
+    await db.execute(update(AdminUser).where(AdminUser.id == admin_id).values(**values))
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
+    return await get_admin(db, admin_id)
+
+
+async def delete_admin(db: AsyncSession, admin_id: int) -> bool:
+    result = await db.execute(delete(AdminUser).where(AdminUser.id == admin_id))
+    await db.commit()
+    return (result.rowcount or 0) > 0
 
 
 async def update_last_login(db: AsyncSession, admin_id: int):

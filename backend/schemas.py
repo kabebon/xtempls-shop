@@ -153,9 +153,22 @@ class AdminUserOut(BaseModel):
     login: str
     is_active: bool
     created_at: datetime
+    last_login: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class AdminUserCreate(BaseModel):
+    login: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6, max_length=128)
+    is_active: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    login: Optional[str] = Field(None, min_length=3, max_length=50)
+    password: Optional[str] = Field(None, min_length=6, max_length=128)
+    is_active: Optional[bool] = None
 
 
 # ─── TgUser ───────────────────────────────────────────────────────────────────

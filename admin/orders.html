@@ -45,6 +45,13 @@
       Заказы
       <span class="badge badge-red" id="newOrdersBadge" style="margin-left:auto;display:none;"></span>
     </a>
+    <a class="nav-item" href="users.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Администраторы
+    </a>
     <div class="sidebar-bottom">
       <div class="admin-badge">
         <div class="admin-avatar" id="adminInitial">A</div>
@@ -352,23 +359,48 @@
 
     const btn = document.getElementById('sendBroadcastBtn');
     btn.disabled = true;
-    btn.textContent = 'Отправка...';
+    btn.textContent = 'Постановка в очередь...';
 
     const res = await apiFetch('/api/admin/broadcast', {
       method: 'POST',
       body: JSON.stringify({ text })
     });
 
-    btn.disabled = false;
-    btn.textContent = '📨 Отправить рассылку';
-
-    if (res.ok) {
-      const data = await res.json();
-      showToast(`Отправлено: ${data.sent}, ошибок: ${data.failed}`, 'success');
-      closeBroadcastModal();
-    } else {
-      showToast('Ошибка рассылки', 'error');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      btn.disabled = false;
+      btn.textContent = '📨 Отправить рассылку';
+      showToast(err.detail || 'Ошибка рассылки', 'error');
+      return;
     }
+
+    const data = await res.json();
+    btn.textContent = `Отправляется: 0/${data.queued}`;
+    document.getElementById('broadcastText').value = '';
+
+    // Poll progress until done
+    const statsEl = document.getElementById('broadcastStats');
+    const poll = async () => {
+      try {
+        const sRes = await apiFetch('/api/admin/broadcast/status');
+        if (!sRes.ok) return;
+        const s = await sRes.json();
+        if (s.state === 'running' && statsEl) {
+          statsEl.innerHTML = `⏳ Отправка... <strong>${s.sent}</strong> отправлено, <strong>${s.failed}</strong> ошибок из <strong>${s.total}</strong>`;
+        }
+        if (s.state === 'running') {
+          setTimeout(poll, 1500);
+        } else if (s.state === 'done') {
+          btn.disabled = false;
+          btn.textContent = '📨 Отправить рассылку';
+          showToast(`Готово: отправлено ${s.sent}, ошибок ${s.failed}`, 'success');
+          if (statsEl) {
+            statsEl.innerHTML = `✅ Отправлено: <strong>${s.sent}</strong>, ошибок: <strong>${s.failed}</strong> из <strong>${s.total}</strong>`;
+          }
+        }
+      } catch (e) { setTimeout(poll, 2000); }
+    };
+    setTimeout(poll, 1500);
   };
 
   document.getElementById('broadcastModal').addEventListener('click', function(e) {
