@@ -4,7 +4,7 @@ const API = '/api';
 const tg = window.Telegram?.WebApp;
 
 // Public site config (manager username, contacts) loaded from backend — no hardcoding.
-let siteConfig = { manager_username: '', contact_email: '', contact_telegram: '' };
+let siteConfig = { manager_username: '', contact_telegram: '' };
 
 // Init Telegram WebApp
 if (tg) {
@@ -26,8 +26,6 @@ fetch(`${API}/config`)
 
 // Fill footer contact elements from config (elements are optional per page).
 function applySiteConfig() {
-  const emailEl = document.getElementById('footerEmail');
-  if (emailEl) emailEl.textContent = siteConfig.contact_email || '';
   const tgEl = document.getElementById('footerTelegram');
   if (tgEl) tgEl.textContent = siteConfig.contact_telegram ? `@${siteConfig.contact_telegram}` : '';
 }

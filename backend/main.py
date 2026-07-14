@@ -86,6 +86,5 @@ async def public_config():
     """
     return {
         "manager_username": settings.manager_username,
-        "contact_email": settings.contact_email,
         "contact_telegram": settings.contact_telegram,
     }
