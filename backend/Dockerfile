@@ -15,4 +15,10 @@ COPY . .
 # Create uploads dir
 RUN mkdir -p /app/uploads
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Entrypoint: run alembic migrations ONCE, then start uvicorn.
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]

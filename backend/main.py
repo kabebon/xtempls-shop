@@ -2,9 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
-import os
-from alembic import command
-from alembic.config import Config
 
 from database import engine, settings, AsyncSessionLocal
 import models  # noqa: F401 — ensures all tables are registered on Base.metadata
@@ -15,36 +12,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_migrations() -> None:
-    """Apply Alembic migrations to head."""
-    cfg = Config("alembic.ini")
-    # alembic.ini lives next to main.py inside the container (/app)
-    if not os.path.exists("alembic.ini"):
-        logger.warning("alembic.ini not found, skipping migrations")
-        return
-    command.upgrade(cfg, "head")
+async def seed_admin():
+    """Idempotently seed the default admin.
 
-
-async def init_db():
-    """Apply migrations and seed default admin if not exists."""
-    run_migrations()
-
+    Migrations are run by the container entrypoint (once, before workers fork),
+    so the only thing each worker needs to do is ensure the seed admin exists.
+    create_admin already swallows the unique-constraint race between workers.
+    """
     async with AsyncSessionLocal() as db:
         existing = await crud.get_admin_by_login(db, settings.admin_default_login)
         if not existing:
-            await crud.create_admin(
-                db,
-                settings.admin_default_login,
-                settings.admin_default_password
-            )
-            logger.info(f"✅ Default admin created: {settings.admin_default_login}")
+            try:
+                await crud.create_admin(
+                    db,
+                    settings.admin_default_login,
+                    settings.admin_default_password
+                )
+                logger.info(f"✅ Default admin created: {settings.admin_default_login}")
+            except Exception:
+                # Another worker likely created it first; ignore the race.
+                logger.info("✅ Admin user already exists (created by another worker)")
         else:
             logger.info("✅ Admin user already exists")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    await seed_admin()
     yield
     await engine.dispose()
 
