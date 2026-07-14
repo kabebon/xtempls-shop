@@ -11,7 +11,12 @@ class Settings(BaseSettings):
     admin_default_login: str = "admin"
     admin_default_password: str = "admin"
     environment: str = "production"
-    allowed_origins: str = "https://xtempls.ru"
+    # Public site config — must be set via env (no hardcoded domain)
+    allowed_origins: str = ""        # comma-separated, e.g. "https://xtempls.ru"
+    webapp_url: str = ""             # public Mini App URL, e.g. "https://xtempls.ru"
+    manager_username: str = ""       # contact username for "ask manager" links (without @)
+    contact_email: str = ""          # public contact email shown in the footer
+    contact_telegram: str = ""       # public contact channel/@username shown in footer
     # Bot settings
     telegram_bot_token: str = ""
     manager_chat_id: str = ""         # Может содержать несколько ID через запятую

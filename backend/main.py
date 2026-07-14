@@ -52,11 +52,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS — allow Telegram Mini App and admin panel
-origins = settings.allowed_origins.split(",") + [
-    "https://xtempls.ru",
-    "https://web.telegram.org",
-]
+# CORS — origins are configured via ALLOWED_ORIGINS env (comma-separated).
+# Telegram WebApp host is always allowed so the Mini App can call the API.
+origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+origins += ["https://web.telegram.org"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,3 +75,17 @@ app.include_router(orders_router.router, prefix="/api")
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "service": "xtempls-api"}
+
+
+@app.get("/api/config")
+async def public_config():
+    """Public site config for the Mini App / frontend.
+
+    Returns contact links and the manager username so the frontend doesn't
+    need any hardcoded domain/contact info — everything comes from env vars.
+    """
+    return {
+        "manager_username": settings.manager_username,
+        "contact_email": settings.contact_email,
+        "contact_telegram": settings.contact_telegram,
+    }

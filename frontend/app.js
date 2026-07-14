@@ -3,11 +3,33 @@
 const API = '/api';
 const tg = window.Telegram?.WebApp;
 
+// Public site config (manager username, contacts) loaded from backend — no hardcoding.
+let siteConfig = { manager_username: '', contact_email: '', contact_telegram: '' };
+
 // Init Telegram WebApp
 if (tg) {
   tg.ready();
   tg.expand();
   document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || '#0a0a0a');
+}
+
+// Load public config early (non-blocking; links degrade gracefully if it fails)
+fetch(`${API}/config`)
+  .then(r => r.ok ? r.json() : null)
+  .then(data => {
+    if (data) {
+      siteConfig = data;
+      applySiteConfig();
+    }
+  })
+  .catch(() => {});
+
+// Fill footer contact elements from config (elements are optional per page).
+function applySiteConfig() {
+  const emailEl = document.getElementById('footerEmail');
+  if (emailEl) emailEl.textContent = siteConfig.contact_email || '';
+  const tgEl = document.getElementById('footerTelegram');
+  if (tgEl) tgEl.textContent = siteConfig.contact_telegram ? `@${siteConfig.contact_telegram}` : '';
 }
 
 // ── Cart State (localStorage) ─────────────────────────────────────────────────
@@ -876,8 +898,9 @@ if (isProductPage) {
           const text = selectedSize
             ? `Хочу узнать подробнее: ${p.name} (размер ${selectedSize})`
             : `Хочу узнать подробнее: ${p.name}`;
-          if (tg) {
-            tg.openTelegramLink(`https://t.me/xtempls_manager?text=${encodeURIComponent(text)}`);
+          const manager = siteConfig.manager_username;
+          if (tg && manager) {
+            tg.openTelegramLink(`https://t.me/${manager}?text=${encodeURIComponent(text)}`);
           } else {
             showToast('Откройте через Telegram');
           }

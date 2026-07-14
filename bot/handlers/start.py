@@ -8,9 +8,12 @@ from aiogram.filters import CommandStart, Command
 router = Router()
 logger = logging.getLogger(__name__)
 
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://xtempls.ru")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
 BOT_SECRET = os.getenv("BOT_SECRET", "bot-internal-secret")
+
+if not WEBAPP_URL:
+    logger.error("WEBAPP_URL is not set — Mini App button will not work. Set it in .env")
 
 
 async def register_user(message: Message):
