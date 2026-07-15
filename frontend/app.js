@@ -602,8 +602,11 @@ if (isCatalogPage) {
     currentPage = 1;
     allProducts = [];
     document.querySelectorAll('.cat-btn').forEach(b => {
-      b.style.backgroundColor = String(b.dataset.id) === String(id) ? '#333' : 'transparent';
-      b.style.color = String(b.dataset.id) === String(id) ? '#fff' : '#333';
+      if (String(b.dataset.id) === String(id)) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
     });
     const showFeatured = !currentCategory && !currentSearch;
     if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
