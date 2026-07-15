@@ -485,9 +485,19 @@ const isProductPage = window.location.pathname.includes('product.html');
 const isCatalogPage = window.location.pathname.includes('catalog.html') || window.location.pathname === '/catalog';
 const isIndexPage = window.location.pathname === '/' || window.location.pathname.includes('index.html');
 
+if (isIndexPage && tg && tg.BackButton.isVisible) {
+  tg.BackButton.hide();
+}
 // ── CATALOG PAGE ────────────────────────────────────────────────────────────────
 
 if (isCatalogPage) {
+  if (tg) {
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+      window.location.href = '/';
+    });
+  }
+
   let currentCategory = '';
   let currentSearch = '';
   let searchTimeout;
