@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, Numeric,
-    ForeignKey, DateTime, func, Enum as SAEnum, BigInteger
+    ForeignKey, DateTime, func, Enum as SAEnum, BigInteger, JSON
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -41,6 +41,7 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
     sort_order = Column(Integer, default=0)
+    size_chart = Column(JSON, nullable=True)  # {"S": "42-44 см", "M": "46-48 см", ...}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -128,6 +129,20 @@ class Order(Base):
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin")
 
 
+class PromoCode(Base):
+    """Promotional discount codes."""
+    __tablename__ = "promo_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), nullable=False, unique=True, index=True)
+    discount_percent = Column(Integer, nullable=False)  # e.g. 10 = 10%
+    is_active = Column(Boolean, default=True)
+    usage_limit = Column(Integer, nullable=True)       # None = unlimited
+    used_count = Column(Integer, default=0)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class OrderItem(Base):
     __tablename__ = "order_items"
 
@@ -141,3 +156,5 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
+    promo_code = Column(String(50), nullable=True)       # snapshot of applied promo code
+    discount_amount = Column(Numeric(10, 2), nullable=True)  # saved discount amount

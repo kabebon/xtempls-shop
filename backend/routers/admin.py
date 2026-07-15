@@ -18,7 +18,8 @@ from schemas import (
     ProductCreate, ProductUpdate, ProductOut, ProductListResponse,
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
     AdminUserCreate, AdminUserUpdate,
-    OrderOut, OrderListResponse, OrderStatusUpdate, BroadcastRequest
+    OrderOut, OrderListResponse, OrderStatusUpdate, BroadcastRequest,
+    PromoCodeCreate, PromoCodeOut, ImageReorderRequest
 )
 from models import AdminUser
 from notifications import broadcast as tg_broadcast, get_broadcast_status
@@ -271,6 +272,21 @@ async def admin_set_primary_image(
     return {"ok": True}
 
 
+@router.put("/admin/products/{product_id}/images/reorder", status_code=200)
+async def admin_reorder_images(
+    product_id: int,
+    data: ImageReorderRequest,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Update sort_order for product images (drag-and-drop reordering)."""
+    product = await crud.get_product(db, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    await crud.reorder_product_images(db, product_id, [{"id": i.id, "sort_order": i.sort_order} for i in data.images])
+    return {"ok": True}
+
+
 # ── Admin: Orders ──────────────────────────────────────────────────────
 
 @router.get("/admin/orders", response_model=OrderListResponse)
@@ -359,6 +375,52 @@ async def admin_broadcast_status(
 ):
     """Progress of the current/last broadcast."""
     return get_broadcast_status()
+
+
+# ── Admin: Promo Codes ──────────────────────────────────────────────────────
+
+@router.get("/admin/promo-codes", response_model=List[PromoCodeOut])
+async def admin_list_promo_codes(
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    return await crud.get_all_promo_codes(db)
+
+
+@router.post("/admin/promo-codes", response_model=PromoCodeOut, status_code=201)
+async def admin_create_promo_code(
+    data: PromoCodeCreate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    try:
+        return await crud.create_promo_code(
+            db, data.code, data.discount_percent,
+            data.is_active, data.usage_limit, data.expires_at
+        )
+    except Exception:
+        raise HTTPException(status_code=409, detail="Промокод с таким названием уже существует")
+
+
+@router.delete("/admin/promo-codes/{promo_id}", status_code=204)
+async def admin_delete_promo_code(
+    promo_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    await crud.delete_promo_code(db, promo_id)
+
+
+@router.patch("/admin/promo-codes/{promo_id}/toggle", response_model=PromoCodeOut)
+async def admin_toggle_promo_code(
+    promo_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    promo = await crud.toggle_promo_code(db, promo_id)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+    return promo
 
 
 # ── Admin: Users ──────────────────────────────────────────────────────

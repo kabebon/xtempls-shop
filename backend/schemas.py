@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
 from models import StockStatus, OrderType
@@ -76,6 +76,7 @@ class ProductBase(BaseModel):
     is_active: bool = True
     is_featured: bool = False
     sort_order: int = 0
+    size_chart: Optional[Dict[str, str]] = None  # e.g. {"S": "42-44", "M": "46-48"}
 
 
 class ProductCreate(ProductBase):
@@ -94,6 +95,7 @@ class ProductUpdate(BaseModel):
     is_featured: Optional[bool] = None
     sort_order: Optional[int] = None
     sizes: Optional[List[str]] = None
+    size_chart: Optional[Dict[str, str]] = None
 
 
 class ProductOut(ProductBase):
@@ -211,6 +213,7 @@ class OrderCreate(BaseModel):
     tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
     tg_init_data: Optional[str] = None
     order_type: OrderType = OrderType.catalog
+    promo_code: Optional[str] = None  # promo code applied at checkout
 
 
 class OrderItemOut(BaseModel):
@@ -257,3 +260,47 @@ class OrderListResponse(BaseModel):
 class BroadcastRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=4096)
 
+
+# ─── PromoCode ───────────────────────────────────────────────────────────────
+
+class PromoCodeCreate(BaseModel):
+    code: str = Field(..., min_length=2, max_length=50)
+    discount_percent: int = Field(..., ge=1, le=100)
+    is_active: bool = True
+    usage_limit: Optional[int] = None
+    expires_at: Optional[datetime] = None
+
+
+class PromoCodeOut(BaseModel):
+    id: int
+    code: str
+    discount_percent: int
+    is_active: bool
+    usage_limit: Optional[int] = None
+    used_count: int
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PromoValidateRequest(BaseModel):
+    code: str
+
+
+class PromoValidateResponse(BaseModel):
+    valid: bool
+    discount_percent: Optional[int] = None
+    message: Optional[str] = None
+
+
+# ─── Image reorder ───────────────────────────────────────────────────────────────
+
+class ImageReorderItem(BaseModel):
+    id: int
+    sort_order: int
+
+
+class ImageReorderRequest(BaseModel):
+    images: List[ImageReorderItem]

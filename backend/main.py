@@ -7,6 +7,7 @@ from database import engine, settings, AsyncSessionLocal
 import models  # noqa: F401 — ensures all tables are registered on Base.metadata
 import crud
 from routers import products, categories, admin as admin_router, orders as orders_router
+from routers.orders import promo_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,6 +71,8 @@ app.include_router(products.router, prefix="/api")
 app.include_router(categories.router, prefix="/api")
 app.include_router(admin_router.router, prefix="/api")
 app.include_router(orders_router.router, prefix="/api")
+app.include_router(promo_router, prefix="/api")
+
 
 
 @app.get("/api/health")

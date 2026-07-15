@@ -6,12 +6,14 @@ import logging
 
 from database import get_db, settings
 import crud
-from schemas import OrderCreate, OrderOut, TgUserRegister
+from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest, PromoValidateResponse
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
+promo_router = APIRouter(prefix="/promo", tags=["promo"])
+
 
 
 # ─── Register Telegram user (called by bot on /start) ────────────────────────
@@ -71,3 +73,18 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
         logger.exception("Manager notification failed for order #%s", order.id)
 
     return order
+
+
+# ─── Public: Validate Promo Code ──────────────────────────────────────────────
+
+@promo_router.post("/validate", response_model=PromoValidateResponse)
+async def validate_promo(data: PromoValidateRequest, db: AsyncSession = Depends(get_db)):
+    """Public endpoint: check if a promo code is valid and return the discount."""
+    promo = await crud.validate_promo_code(db, data.code)
+    if not promo:
+        return PromoValidateResponse(valid=False, message="Промокод недействителен или истёк")
+    return PromoValidateResponse(
+        valid=True,
+        discount_percent=promo.discount_percent,
+        message=f"Скидка {promo.discount_percent}% применена!"
+    )

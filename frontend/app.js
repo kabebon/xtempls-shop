@@ -56,12 +56,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const burger = document.querySelector('.sb-header-default__burger');
   const menu = document.querySelector('.sb-header-default__menu_solid');
   if (burger && menu) {
-    burger.addEventListener('click', () => {
-      burger.classList.toggle('sb-header-default__burger_active');
-      menu.classList.toggle('burger-menu-open');
+    burger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('sb-header-default__menu_open') || menu.classList.contains('burger-menu-open');
+      if (isOpen) {
+        burger.classList.remove('sb-header-default__burger_open', 'sb-header-default__burger_active');
+        menu.classList.remove('sb-header-default__menu_open', 'burger-menu-open');
+      } else {
+        burger.classList.add('sb-header-default__burger_open', 'sb-header-default__burger_active');
+        menu.classList.add('sb-header-default__menu_open', 'burger-menu-open');
+      }
+    });
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!burger.contains(e.target) && !menu.contains(e.target)) {
+        burger.classList.remove('sb-header-default__burger_open', 'sb-header-default__burger_active');
+        menu.classList.remove('sb-header-default__menu_open', 'burger-menu-open');
+      }
     });
   }
 });
+
+
 
 function addToCart(product, size) {
   const key = `${product.id}_${size || ''}`;
@@ -111,16 +127,28 @@ function cartTotal() {
 
 window.openCart = function() {
   renderCartItems();
-  document.getElementById('cartModal')?.classList.add('open');
+  const modal = document.getElementById('cartModal');
+  const backdrop = document.getElementById('cartBackdrop');
+  if (modal) modal.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+  document.body.style.overflow = 'hidden';
 };
 
 window.closeCart = function() {
-  document.getElementById('cartModal')?.classList.remove('open');
+  const modal = document.getElementById('cartModal');
+  const backdrop = document.getElementById('cartBackdrop');
+  if (modal) modal.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+  document.body.style.overflow = '';
 };
 
 window.openCheckout = function() {
   if (cart.length === 0) return;
-  document.getElementById('cartModal')?.classList.remove('open');
+  const cartModal = document.getElementById('cartModal');
+  const backdrop = document.getElementById('cartBackdrop');
+  if (cartModal) cartModal.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+  document.body.style.overflow = '';
   // Populate checkout summary
   const summary = document.getElementById('checkoutSummary');
   const totalEl = document.getElementById('checkoutTotal');
@@ -144,12 +172,68 @@ window.openCheckout = function() {
   if (contactEl && tg?.initDataUnsafe?.user?.username) {
     contactEl.value = '@' + tg.initDataUnsafe.user.username;
   }
-  document.getElementById('checkoutModal')?.classList.add('open');
+  // Reset promo
+  const promoInput = document.getElementById('chkPromo');
+  const promoMsg = document.getElementById('promoMsg');
+  if (promoInput) promoInput.value = '';
+  if (promoMsg) { promoMsg.textContent = ''; promoMsg.className = 'promo-msg'; }
+  window._appliedPromo = null;
+  updateCheckoutTotal();
+  const checkoutModal = document.getElementById('checkoutModal');
+  const checkoutBackdrop = document.getElementById('checkoutBackdrop');
+  if (checkoutModal) checkoutModal.classList.add('open');
+  if (checkoutBackdrop) checkoutBackdrop.classList.add('open');
+  document.body.style.overflow = 'hidden';
 };
 
 window.backToCart = function() {
-  document.getElementById('checkoutModal')?.classList.remove('open');
-  document.getElementById('cartModal')?.classList.add('open');
+  const checkoutModal = document.getElementById('checkoutModal');
+  const checkoutBackdrop = document.getElementById('checkoutBackdrop');
+  if (checkoutModal) checkoutModal.classList.remove('open');
+  if (checkoutBackdrop) checkoutBackdrop.classList.remove('open');
+  document.body.style.overflow = '';
+  openCart();
+};
+
+function updateCheckoutTotal() {
+  const totalEl = document.getElementById('checkoutTotal');
+  const discEl = document.getElementById('checkoutDiscount');
+  const promo = window._appliedPromo;
+  const base = cartTotal();
+  if (promo) {
+    const disc = Math.round(base * promo.discount_percent / 100);
+    const final = base - disc;
+    if (discEl) discEl.innerHTML = `<span class="promo-discount-line">Скидка ${promo.discount_percent}%: −${fmt(disc)}</span>`;
+    if (totalEl) totalEl.textContent = fmt(final);
+  } else {
+    if (discEl) discEl.innerHTML = '';
+    if (totalEl) totalEl.textContent = fmt(base);
+  }
+}
+
+window.applyPromo = async function() {
+  const code = document.getElementById('chkPromo')?.value.trim();
+  const msg = document.getElementById('promoMsg');
+  if (!code) return;
+  if (msg) msg.textContent = 'Проверяем...';
+  try {
+    const res = await fetch(`${API}/promo/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (data.valid) {
+      window._appliedPromo = { code, discount_percent: data.discount_percent };
+      if (msg) { msg.textContent = data.message; msg.className = 'promo-msg promo-ok'; }
+    } else {
+      window._appliedPromo = null;
+      if (msg) { msg.textContent = data.message; msg.className = 'promo-msg promo-err'; }
+    }
+    updateCheckoutTotal();
+  } catch(e) {
+    if (msg) { msg.textContent = 'Ошибка проверки промокода'; msg.className = 'promo-msg promo-err'; }
+  }
 };
 
 function renderCartItems() {
@@ -212,6 +296,7 @@ window.submitOrder = async function() {
       customer_contact: contact,
       comment: comment || null,
       tg_init_data: tg?.initData || null,
+      promo_code: window._appliedPromo?.code || null,
       items: cart.map(i => ({
         product_id: i.product_id,
         size: i.size,
@@ -234,6 +319,7 @@ window.submitOrder = async function() {
     // Clear cart
     cart = [];
     saveCart();
+    window._appliedPromo = null;
 
     // Show success
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
@@ -255,7 +341,12 @@ window.submitOrder = async function() {
 
     // Auto-close after 3s
     setTimeout(() => {
-      document.getElementById('checkoutModal')?.classList.remove('open');
+      const checkoutModal = document.getElementById('checkoutModal');
+      const checkoutBackdrop = document.getElementById('checkoutBackdrop');
+      if (checkoutModal) checkoutModal.classList.remove('open');
+      if (checkoutBackdrop) { checkoutBackdrop.classList.remove('open'); checkoutBackdrop.style.display = '';
+      }
+      document.body.style.overflow = '';
     }, 3500);
 
   } catch (e) {
@@ -272,6 +363,9 @@ function injectCartUI() {
   if (document.getElementById('cartModal')) return;
 
   const html = `
+    <!-- Cart Backdrop -->
+    <div id="cartBackdrop" class="cart-backdrop" onclick="closeCart()"></div>
+
     <!-- FAB -->
     <div class="cart-btn" onclick="openCart()" style="position:fixed; bottom:20px; right:20px; z-index:90;">
       <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -280,9 +374,9 @@ function injectCartUI() {
       <span class="cart-count" id="cartCount" style="display:none;">0</span>
     </div>
 
-    <!-- Cart Modal -->
-    <div id="cartModal" class="modal">
-      <div class="modal-content cart-content">
+    <!-- Cart Drawer -->
+    <div id="cartModal" class="cart-drawer">
+      <div class="cart-drawer-inner">
         <div class="modal-header">
           <h2>Корзина</h2>
           <button class="close-btn" onclick="closeCart()">×</button>
@@ -293,23 +387,27 @@ function injectCartUI() {
             <span>Итого:</span>
             <span class="cart-total-price" id="cartTotal">0 ₽</span>
           </div>
-          <button class="checkout-btn" onclick="openCheckout()">К оформлению</button>
+          <button class="checkout-btn" onclick="openCheckout()">К оформлению →</button>
         </div>
       </div>
     </div>
 
+    <!-- Checkout Backdrop -->
+    <div id="checkoutBackdrop" class="cart-backdrop" onclick=""></div>
+
     <!-- Checkout Modal -->
-    <div id="checkoutModal" class="modal">
-      <div class="modal-content cart-content">
+    <div id="checkoutModal" class="cart-drawer">
+      <div class="cart-drawer-inner">
         <div class="modal-header">
           <button class="back-icon-btn" onclick="backToCart()">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <h2>Оформление</h2>
-          <button class="close-btn" onclick="document.getElementById('checkoutModal').classList.remove('open')">×</button>
+          <button class="close-btn" onclick="document.getElementById('checkoutModal').classList.remove('open'); document.getElementById('checkoutBackdrop').classList.remove('open'); document.body.style.overflow='';">×</button>
         </div>
         <div class="cart-body">
           <div id="checkoutSummary" class="checkout-summary"></div>
+          <div id="checkoutDiscount" class="checkout-discount-wrap"></div>
           <div class="checkout-total-line">
             <span>Сумма заказа:</span>
             <span id="checkoutTotal">0 ₽</span>
@@ -319,12 +417,26 @@ function injectCartUI() {
             <input type="text" id="chkName" class="chk-input" required placeholder="Иван Иванов" />
             <label class="chk-label">Телефон или Telegram</label>
             <input type="text" id="chkContact" class="chk-input" required placeholder="@username или +7..." />
+            <label class="chk-label">Промокод</label>
+            <div class="promo-row">
+              <input type="text" id="chkPromo" class="chk-input promo-input" placeholder="Введите промокод" />
+              <button type="button" class="promo-apply-btn" onclick="applyPromo()">Применить</button>
+            </div>
+            <div id="promoMsg" class="promo-msg"></div>
             <label class="chk-label">Комментарий к заказу</label>
             <textarea id="chkComment" class="chk-input" placeholder="Город доставки, размер и т.д." rows="2"></textarea>
-            <button type="submit" class="checkout-submit-btn">Отправить заказ</button>
+            <button type="submit" id="submitOrderBtn" class="checkout-submit-btn">Отправить заказ</button>
           </form>
         </div>
       </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox()">
+      <button class="lightbox-close" onclick="closeLightbox()">×</button>
+      <button class="lightbox-arrow lightbox-prev" onclick="event.stopPropagation(); lightboxNav(-1)">‹</button>
+      <img id="lightboxImg" class="lightbox-img" onclick="event.stopPropagation()" />
+      <button class="lightbox-arrow lightbox-next" onclick="event.stopPropagation(); lightboxNav(1)">›</button>
     </div>
   `;
   const div = document.createElement('div');
@@ -769,6 +881,74 @@ if (isProductPage) {
     }
   });
 
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') showImage(currentImg - 1);
+    if (e.key === 'ArrowRight') showImage(currentImg + 1);
+    if (e.key === 'Escape') closeLightbox();
+  });
+
+  // Lightbox
+  window.openLightbox = function(idx) {
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lightboxImg');
+    if (!lb || !lbImg || !images.length) return;
+    lbImg.src = images[idx];
+    lb.dataset.idx = idx;
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closeLightbox = function() {
+    const lb = document.getElementById('lightbox');
+    if (lb) lb.classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  window.lightboxNav = function(dir) {
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lightboxImg');
+    if (!lb || !lbImg) return;
+    const idx = ((Number(lb.dataset.idx) + dir) + images.length) % images.length;
+    lb.dataset.idx = idx;
+    lbImg.src = images[idx];
+  };
+
+  // Размерная сетка
+  window.openSizeChart = function(chart) {
+    const modal = document.getElementById('sizeChartModal');
+    const body = document.getElementById('sizeChartBody');
+    if (!modal || !body || !chart) return;
+    const rows = Object.entries(chart).map(([size, desc]) =>
+      `<tr><td class="sc-size">${size}</td><td class="sc-desc">${desc}</td></tr>`
+    ).join('');
+    body.innerHTML = `<table class="size-chart-table"><thead><tr><th>Размер</th><th>Параметры</th></tr></thead><tbody>${rows}</tbody></table>`;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.closeSizeChart = function() {
+    document.getElementById('sizeChartModal')?.classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  // Inject size chart modal if not present
+  if (!document.getElementById('sizeChartModal')) {
+    const scm = document.createElement('div');
+    scm.innerHTML = `
+      <div id="sizeChartModal" class="lightbox" onclick="closeSizeChart()">
+        <div class="size-chart-modal-inner" onclick="event.stopPropagation()">
+          <div class="size-chart-header">
+            <span>📏 Размерная сетка</span>
+            <button class="lightbox-close-sm" onclick="closeSizeChart()">×</button>
+          </div>
+          <div id="sizeChartBody"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(scm);
+  }
+
   // Stock indicator
   function renderStock(status) {
     const map = {
@@ -847,6 +1027,28 @@ if (isProductPage) {
       if (images.length > 0) {
         showImage(0);
 
+        // Arrows (desktop) — injected into #gallery
+        if (images.length > 1) {
+          const galleryWrap = document.getElementById('gallery');
+          if (galleryWrap && !galleryWrap.querySelector('.gallery-arrow-prev')) {
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'gallery-arrow gallery-arrow-prev';
+            prevBtn.innerHTML = '‹';
+            prevBtn.onclick = () => showImage(currentImg - 1);
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'gallery-arrow gallery-arrow-next';
+            nextBtn.innerHTML = '›';
+            nextBtn.onclick = () => showImage(currentImg + 1);
+            galleryWrap.appendChild(prevBtn);
+            galleryWrap.appendChild(nextBtn);
+          }
+        }
+
+        // Click on main image → lightbox
+        if (galleryMain) {
+          galleryMain.onclick = () => openLightbox(currentImg);
+        }
+
         // Dots
         if (images.length > 1) {
           galleryDots.innerHTML = images.map((_, i) =>
@@ -867,6 +1069,17 @@ if (isProductPage) {
 
       // Sizes
       renderSizes(p.sizes);
+
+      // Size chart link
+      const sizeChartLink = document.getElementById('sizeChartLink');
+      if (sizeChartLink) {
+        if (p.size_chart && Object.keys(p.size_chart).length > 0) {
+          sizeChartLink.style.display = 'inline-flex';
+          sizeChartLink.onclick = () => openSizeChart(p.size_chart);
+        } else {
+          sizeChartLink.style.display = 'none';
+        }
+      }
 
       // Description
       if (p.description) {
@@ -891,19 +1104,7 @@ if (isProductPage) {
         };
       }
 
-      if (contactBtn) {
-        contactBtn.onclick = () => {
-          const text = selectedSize
-            ? `Хочу узнать подробнее: ${p.name} (размер ${selectedSize})`
-            : `Хочу узнать подробнее: ${p.name}`;
-          const manager = siteConfig.manager_username;
-          if (tg && manager) {
-            tg.openTelegramLink(`https://t.me/${manager}?text=${encodeURIComponent(text)}`);
-          } else {
-            showToast('Откройте через Telegram');
-          }
-        };
-      }
+      // contactBtn removed — manager contact is available via Telegram button in cart
 
     } catch (e) {
       productName.textContent = 'Товар не найден';

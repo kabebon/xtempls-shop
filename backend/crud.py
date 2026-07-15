@@ -6,7 +6,7 @@ from sqlalchemy import select, func, update, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from models import Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser, Order, OrderItem, OrderStatus
+from models import Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser, Order, OrderItem, OrderStatus, PromoCode
 from schemas import (
     CategoryCreate, CategoryUpdate,
     ProductCreate, ProductUpdate,
@@ -234,6 +234,17 @@ async def set_primary_image(db: AsyncSession, product_id: int, image_id: int):
     await db.commit()
 
 
+async def reorder_product_images(db: AsyncSession, product_id: int, order: list):
+    """Update sort_order for product images. order = [{id, sort_order}, ...]"""
+    for item in order:
+        await db.execute(
+            update(ProductImage)
+            .where(ProductImage.id == item["id"], ProductImage.product_id == product_id)
+            .values(sort_order=item["sort_order"])
+        )
+    await db.commit()
+
+
 # ─── Admin Users ──────────────────────────────────────────────────────────────
 
 async def get_admin_by_login(db: AsyncSession, login: str):
@@ -343,15 +354,38 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
     db.add(order)
     await db.flush()
 
+    # Resolve promo code discount if provided
+    discount_percent = 0
+    applied_promo = None
+    if getattr(data, "promo_code", None):
+        promo = await validate_promo_code(db, data.promo_code)
+        if promo:
+            discount_percent = promo.discount_percent
+            applied_promo = promo.code
+            # Increment usage count
+            await db.execute(
+                update(PromoCode)
+                .where(PromoCode.id == promo.id)
+                .values(used_count=PromoCode.used_count + 1)
+            )
+
     for item_data in data.items:
         product = products_by_id[item_data.product_id]
+        price = product.price
+        disc_amount = None
+        if discount_percent:
+            from decimal import Decimal
+            disc_amount = (price * Decimal(discount_percent) / Decimal(100)).quantize(Decimal('0.01'))
+            price = price - disc_amount
         item = OrderItem(
             order_id=order.id,
             product_id=item_data.product_id,
-            product_name=product.name,            # snapshot from DB
-            product_price=product.price,          # price from DB, not from client
+            product_name=product.name,
+            product_price=price,
             size=item_data.size,
             quantity=item_data.quantity,
+            promo_code=applied_promo,
+            discount_amount=disc_amount,
         )
         db.add(item)
 
@@ -409,3 +443,61 @@ async def get_orders_count(db: AsyncSession) -> dict:
         select(func.count()).select_from(Order).where(Order.status == OrderStatus.new)
     )).scalar()
     return {"total": total, "new": new_count}
+
+
+# ── Promo Codes ────────────────────────────────────────────────────────────────────────────────
+
+async def validate_promo_code(db: AsyncSession, code: str) -> Optional[PromoCode]:
+    """Check if promo code is valid and return it, or None if invalid."""
+    from datetime import datetime, timezone
+    result = await db.execute(select(PromoCode).where(PromoCode.code == code.upper()))
+    promo = result.scalar_one_or_none()
+    if not promo:
+        return None
+    if not promo.is_active:
+        return None
+    if promo.usage_limit is not None and promo.used_count >= promo.usage_limit:
+        return None
+    if promo.expires_at and promo.expires_at < datetime.now(timezone.utc):
+        return None
+    return promo
+
+
+async def get_all_promo_codes(db: AsyncSession) -> list:
+    result = await db.execute(select(PromoCode).order_by(PromoCode.created_at.desc()))
+    return list(result.scalars().all())
+
+
+async def create_promo_code(db: AsyncSession, code: str, discount_percent: int,
+                            is_active: bool = True, usage_limit=None, expires_at=None):
+    promo = PromoCode(
+        code=code.upper(),
+        discount_percent=discount_percent,
+        is_active=is_active,
+        usage_limit=usage_limit,
+        expires_at=expires_at,
+    )
+    db.add(promo)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
+    await db.refresh(promo)
+    return promo
+
+
+async def delete_promo_code(db: AsyncSession, promo_id: int):
+    await db.execute(delete(PromoCode).where(PromoCode.id == promo_id))
+    await db.commit()
+
+
+async def toggle_promo_code(db: AsyncSession, promo_id: int) -> Optional[PromoCode]:
+    result = await db.execute(select(PromoCode).where(PromoCode.id == promo_id))
+    promo = result.scalar_one_or_none()
+    if not promo:
+        return None
+    promo.is_active = not promo.is_active
+    await db.commit()
+    await db.refresh(promo)
+    return promo

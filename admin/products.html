@@ -173,6 +173,13 @@
             <button type="button" class="btn btn-secondary" onclick="addSize()">+ Добавить</button>
           </div>
         </div>
+
+        <!-- Size Chart -->
+        <div style="margin-top:20px;">
+          <div class="form-label" style="margin-bottom:8px;">📏 Размерная сетка <span style="font-weight:400;color:var(--text-muted);font-size:12px;">(необязательно)</span></div>
+          <div id="sizeChartEditor" style="margin-bottom:8px;"></div>
+          <button type="button" class="btn btn-secondary" onclick="addSizeChartRow()" style="font-size:13px;">+ Добавить строку</button>
+        </div>
       </form>
 
       <!-- Images (shown after product is created) -->
@@ -388,9 +395,46 @@
     if (e.key === 'Enter') { e.preventDefault(); addSize(); }
   });
 
+  // Size Chart editor
+  let sizeChartData = {};
+
+  function renderSizeChart(chart) {
+    sizeChartData = chart || {};
+    const editor = document.getElementById('sizeChartEditor');
+    editor.innerHTML = Object.entries(sizeChartData).map(([k, v]) => `
+      <div class="sc-row" style="display:flex;gap:8px;margin-bottom:6px;">
+        <input class="form-input sc-key" value="${k}" placeholder="XL" style="width:80px;flex-shrink:0;" />
+        <input class="form-input sc-val" value="${v}" placeholder="50-52 / грудь 104-108 см" style="flex:1;" />
+        <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove()">✕</button>
+      </div>
+    `).join('');
+  }
+
+  window.addSizeChartRow = function() {
+    const editor = document.getElementById('sizeChartEditor');
+    const row = document.createElement('div');
+    row.className = 'sc-row';
+    row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;';
+    row.innerHTML = `
+      <input class="form-input sc-key" placeholder="XL" style="width:80px;flex-shrink:0;" />
+      <input class="form-input sc-val" placeholder="50-52 / грудь 104-108 см" style="flex:1;" />
+      <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove()">✕</button>
+    `;
+    editor.appendChild(row);
+    row.querySelector('.sc-key').focus();
+  };
+
   // Save product
   window.saveProduct = async function() {
     const id = document.getElementById('productId').value;
+    const sizeChartRows = document.querySelectorAll('.sc-row');
+    const sizeChart = {};
+    sizeChartRows.forEach(row => {
+      const k = row.querySelector('.sc-key').value.trim();
+      const v = row.querySelector('.sc-val').value.trim();
+      if (k) sizeChart[k] = v;
+    });
+
     const body = {
       name: document.getElementById('fName').value.trim(),
       slug: document.getElementById('fSlug').value.trim(),
@@ -403,6 +447,7 @@
       sort_order: parseInt(document.getElementById('fSort').value) || 0,
       description: document.getElementById('fDesc').value.trim() || null,
       sizes: currentSizes,
+      size_chart: Object.keys(sizeChart).length ? sizeChart : null,
     };
 
     if (!body.name || !body.slug || !body.price) {
@@ -454,25 +499,82 @@
     document.getElementById('fDesc').value = p.description || '';
 
     renderSizes();
+    renderSizeChart(p.size_chart || {});
 
     document.getElementById('imagesSection').style.display = 'block';
     renderProductImages(p.images || []);
     document.getElementById('productModal').classList.add('open');
   };
 
-  // Render product images in modal
+  // Render product images in modal with drag-and-drop
   function renderProductImages(images) {
     productImages = images;
     const preview = document.getElementById('imagesPreview');
-    preview.innerHTML = images
-      .sort((a,b) => (b.is_primary?1:0) - (a.is_primary?1:0) || a.sort_order - b.sort_order)
-      .map(img => `
-        <div class="img-thumb ${img.is_primary ? 'primary' : ''}" title="${img.is_primary ? 'Главное фото' : 'Нажмите чтобы сделать главным'}"
-          onclick="setPrimaryImage(${img.id})">
-          <img src="${img.url}" alt="" />
-          <button class="img-thumb-del" onclick="event.stopPropagation();deleteImage(${img.id})">✕</button>
-        </div>
-      `).join('');
+    const sorted = [...images].sort((a,b) => (b.is_primary?1:0) - (a.is_primary?1:0) || a.sort_order - b.sort_order);
+    preview.innerHTML = sorted.map((img, idx) => `
+      <div class="img-thumb ${img.is_primary ? 'primary' : ''}"
+        draggable="true"
+        data-img-id="${img.id}"
+        title="${img.is_primary ? 'Главное фото' : 'Нажмите чтобы сделать главным'}"
+        onclick="setPrimaryImage(${img.id})">
+        <img src="${img.url}" alt="" />
+        <div class="img-thumb-order">${idx+1}</div>
+        <button class="img-thumb-del" onclick="event.stopPropagation();deleteImage(${img.id})">✕</button>
+      </div>
+    `).join('');
+
+    // Attach DnD events
+    setupImageDnd();
+  }
+
+  let dragSrcId = null;
+
+  function setupImageDnd() {
+    const thumbs = document.querySelectorAll('.img-thumb[draggable]');
+    thumbs.forEach(el => {
+      el.addEventListener('dragstart', e => {
+        dragSrcId = el.dataset.imgId;
+        el.style.opacity = '0.4';
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      el.addEventListener('dragend', () => { el.style.opacity = ''; });
+      el.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('dnd-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('dnd-over'));
+      el.addEventListener('drop', async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        el.classList.remove('dnd-over');
+        const targetId = el.dataset.imgId;
+        if (dragSrcId === targetId) return;
+
+        // Reorder in local array
+        const preview = document.getElementById('imagesPreview');
+        const allThumbs = [...preview.querySelectorAll('.img-thumb[data-img-id]')];
+        const srcIdx = allThumbs.findIndex(t => t.dataset.imgId === dragSrcId);
+        const tgtIdx = allThumbs.findIndex(t => t.dataset.imgId === targetId);
+        const newOrder = allThumbs.map(t => Number(t.dataset.imgId));
+        newOrder.splice(srcIdx, 1);
+        newOrder.splice(tgtIdx, 0, Number(dragSrcId));
+
+        const reorderData = newOrder.map((id, i) => ({ id, sort_order: i }));
+        const productId = document.getElementById('productId').value;
+        const res = await apiFetch(`/api/admin/products/${productId}/images/reorder`, {
+          method: 'PUT',
+          body: JSON.stringify({ images: reorderData })
+        });
+        if (res.ok) {
+          // Update local sort orders
+          reorderData.forEach(item => {
+            const img = productImages.find(i => i.id === item.id);
+            if (img) img.sort_order = item.sort_order;
+          });
+          renderProductImages(productImages);
+          showToast('Порядок фото обновлён', 'success');
+        } else {
+          showToast('Ошибка сохранения порядка', 'error');
+        }
+      });
+    });
   }
 
   // Upload image
