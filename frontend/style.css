@@ -1493,12 +1493,19 @@ body {
     top: 100%;
     left: 0;
     right: 0;
-    background: rgba(255,255,255,0.97);
+    background: rgba(20, 22, 34, 0.98) !important;
     backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--border);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 200;
-    padding: 16px 20px;
+    padding: 24px 20px;
     animation: slideDown 0.2s ease;
+  }
+  .sb-header-default__menu_solid .sb-header-default__link {
+    color: #ffffff !important;
+    font-weight: 500;
+    display: block;
+    padding: 8px 0;
   }
 }
 
