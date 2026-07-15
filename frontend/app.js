@@ -412,7 +412,7 @@ function injectCartUI() {
             <span>Сумма заказа:</span>
             <span id="checkoutTotal">0 ₽</span>
           </div>
-          <form id="checkoutForm" onsubmit="submitOrder(event)">
+          <form id="checkoutForm" class="checkout-form" onsubmit="submitOrder(event)">
             <label class="chk-label">Имя и Фамилия</label>
             <input type="text" id="chkName" class="chk-input" required placeholder="Иван Иванов" />
             <label class="chk-label">Телефон или Telegram</label>
@@ -510,8 +510,8 @@ if (isCatalogPage) {
       <div class="s-services-type-5__item js-catalog__item sb-m-3-top sb-col_lg-4 sb-col_md-6 sb-col_sm-6 sb-col_xs-12 sb-skeleton">
         <div class="s-services-type-5__item-content sb-m-clear-bottom">
           <div class="s-services-type-5__image sb-image-square sb-skeleton__image"></div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-skeleton__title sb-align-left"></h3>
-          <div class="s-services-type-5__price sb-font-p3 sb-skeleton__price sb-align-left"></div>
+          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-skeleton__title sb-align-center"></h3>
+          <div class="s-services-type-5__price sb-font-p3 sb-skeleton__price sb-align-center"></div>
         </div>
       </div>
     `).join('');
@@ -529,9 +529,9 @@ if (isCatalogPage) {
           <div class="s-services-type-5__image sb-image-square">
             ${imgHtml}
           </div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-left">${p.name}</h3>
-          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-left">${fmt(p.old_price)}</div>` : ''}
-          <div class="s-services-type-5__price sb-font-p3 sb-align-left">${fmt(p.price)}</div>
+          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
+          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
+          <div class="s-services-type-5__price sb-font-p3 sb-align-center">${fmt(p.price)}</div>
         </div>
       </div>
     `;
@@ -558,9 +558,9 @@ if (isCatalogPage) {
           <div class="s-services-type-5__image sb-image-square" style="position:relative;">
             ${badge}${imgHtml}
           </div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-left">${p.name}</h3>
-          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-left">${fmt(p.old_price)}</div>` : ''}
-          <div class="s-services-type-5__price sb-font-p3 sb-align-left">${fmt(p.price)}</div>
+          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
+          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
+          <div class="s-services-type-5__price sb-font-p3 sb-align-center">${fmt(p.price)}</div>
         </div>
       </div>
     `;
