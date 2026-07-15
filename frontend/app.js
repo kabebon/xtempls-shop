@@ -369,8 +369,8 @@ function injectCartUI() {
     <div id="cartBackdrop" class="cart-backdrop" onclick="closeCart()"></div>
 
     <!-- FAB -->
-    <div class="cart-btn" onclick="openCart()" style="position:fixed; bottom:20px; right:20px; z-index:90;">
-      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+    <div class="cart-btn" onclick="openCart()" style="position:fixed; bottom:20px; right:20px; z-index:999999;">
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
       </svg>
       <span class="cart-count" id="cartCount" style="display:none;">0</span>
@@ -380,7 +380,7 @@ function injectCartUI() {
     <div id="cartModal" class="cart-drawer">
       <div class="cart-drawer-inner">
         <div class="cart-header">
-          <h2>Корзина</h2>
+          <h2 class="cart-title" style="margin:0;">Корзина</h2>
           <button class="modal-close-btn" onclick="closeCart()">×</button>
         </div>
         <div class="cart-body" id="cartBody"></div>
@@ -426,7 +426,7 @@ function injectCartUI() {
             </div>
             <div id="promoMsg" class="promo-msg"></div>
             <label class="chk-label">Комментарий к заказу</label>
-            <textarea id="chkComment" class="chk-input" placeholder="Город доставки, размер и т.д." rows="2"></textarea>
+            <textarea id="chkComment" class="chk-input" placeholder="Город доставки, пожелания и т.д." rows="2"></textarea>
             <button type="submit" id="submitOrderBtn" class="checkout-submit-btn">Отправить заказ</button>
           </form>
         </div>
@@ -988,7 +988,14 @@ if (isProductPage) {
       return;
     }
     sizesBlock.style.display = 'block';
-    sizesGrid.innerHTML = sizes
+    
+    // Normalize in case they are strings somehow
+    const normSizes = sizes.map(s => {
+      if (typeof s === 'string') return { size: s, is_available: true, sort_order: 0 };
+      return s;
+    });
+
+    sizesGrid.innerHTML = normSizes
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(s => `
         <button class="size-btn ${!s.is_available ? 'unavailable' : ''}"
@@ -1122,6 +1129,10 @@ if (isProductPage) {
         addToCartBtn.onclick = () => {
           if (p.stock_status === 'out_of_stock') {
             showToast('Товар отсутствует в наличии');
+            return;
+          }
+          if (p.sizes && p.sizes.length > 0 && !selectedSize) {
+            showToast('Пожалуйста, выберите размер');
             return;
           }
           addToCart(p, selectedSize);

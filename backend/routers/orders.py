@@ -42,7 +42,7 @@ async def register_tg_user(
 @router.post("/", response_model=OrderOut, status_code=201)
 async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     # A design request may legitimately have no items; a catalog order must have ≥1.
-    is_design = str(getattr(data, "order_type", "catalog")) == "design"
+    is_design = data.order_type == OrderType.design
     if not data.items and not is_design:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
 

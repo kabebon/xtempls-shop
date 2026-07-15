@@ -131,12 +131,14 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 24px;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all var(--transition);
+  padding-bottom: 3px;
 }
 
 .modal-close-btn:hover { color: var(--text-primary); }
@@ -733,19 +735,31 @@ body {
 
 /* ── Product Detail Page ── */
 .back-btn {
+  position: fixed;
+  top: 15px;
+  left: 15px;
+  z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 20px;
-  color: var(--text-secondary);
-  font-size: 15px;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  color: #000 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  border: none !important;
+  border-radius: 50%;
   cursor: pointer;
-  border: none;
-  background: none;
-  font-family: var(--font);
-  transition: color var(--transition);
+  transition: all var(--transition);
+  padding: 0;
 }
-.back-btn:hover { color: var(--accent); }
+.back-btn:hover {
+  transform: scale(1.05);
+  color: var(--accent);
+}
+.back-btn-text {
+  display: none;
+}
 
 .product-gallery {
   position: relative;
@@ -1314,14 +1328,7 @@ body {
   box-shadow: 0 4px 12px rgba(46, 51, 89, 0.2) !important;
 }
 
-.size-chart-link {
-  font-weight: 700 !important;
-  color: var(--accent) !important;
-  transition: opacity 0.2s ease;
-}
-.size-chart-link:hover {
-  opacity: 0.85;
-}
+
 
 .divider {
   background: rgba(0, 0, 0, 0.06) !important;
@@ -1418,11 +1425,11 @@ body {
   display: none;
   align-items: center;
   gap: 6px;
-  font-size: 14px !important;
+  font-size: 16px !important;
   color: var(--accent) !important;
   cursor: pointer;
   background: none;
-  border: 1px dashed rgba(76, 90, 158, 0.3) !important;
+  border: none !important;
   border-radius: 30px;
   font-family: var(--font);
   font-weight: 700 !important;
@@ -1433,7 +1440,6 @@ body {
 }
 .size-chart-link:hover {
   color: var(--accent-hover) !important;
-  border-color: var(--accent-hover) !important;
   background: var(--accent-dim) !important;
 }
 
