@@ -702,7 +702,8 @@ if (isCatalogPage) {
         // We do not have renderFeaturedCard function defined here safely, but let's assume it works or just skip it if it doesn't exist
         if (typeof renderFeaturedCard === 'function') {
            featuredRow.innerHTML = data.items.map(renderFeaturedCard).join('');
-           featuredSection.style.display = 'block';
+           const showFeatured = !currentCategory && !currentSearch;
+           featuredSection.style.display = showFeatured ? 'block' : 'none';
         }
       }
     } catch (e) {
