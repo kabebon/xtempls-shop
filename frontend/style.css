@@ -1496,12 +1496,19 @@ body {
 
 /* ── Burger menu fix ── */
 @media (max-width: 768px) {
+  .sb-header-default__wrapper {
+    min-height: 60px; /* Ensure wrapper has height so burger isn't at very top */
+  }
+  .sb-header-default__burger {
+    z-index: 201; /* Above menu so it can be closed */
+  }
   .sb-header-default__menu_solid {
     display: none;
     position: absolute;
     top: 100%;
     left: 0;
     right: 0;
+    height: auto !important; /* Prevent it from being 100vh and covering the whole screen */
     background: rgba(20, 22, 34, 0.98) !important;
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -1524,7 +1531,8 @@ body {
 }
 
 .burger-menu-open {
-  display: block !important;
+  display: flex !important; /* Changed from block to flex to match main CSS */
+  flex-direction: column;
 }
 
 /* ── Checkout layout ── */
