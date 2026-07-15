@@ -6,6 +6,7 @@ import logging
 
 from database import get_db, settings
 import crud
+from models import OrderType
 from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest, PromoValidateResponse
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
