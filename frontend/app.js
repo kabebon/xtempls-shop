@@ -377,9 +377,9 @@ function injectCartUI() {
     <!-- Cart Drawer -->
     <div id="cartModal" class="cart-drawer">
       <div class="cart-drawer-inner">
-        <div class="modal-header">
+        <div class="cart-header">
           <h2>Корзина</h2>
-          <button class="close-btn" onclick="closeCart()">×</button>
+          <button class="modal-close-btn" onclick="closeCart()">×</button>
         </div>
         <div class="cart-body" id="cartBody"></div>
         <div class="cart-footer" id="cartFooter" style="display:none;">
@@ -398,12 +398,12 @@ function injectCartUI() {
     <!-- Checkout Modal -->
     <div id="checkoutModal" class="cart-drawer">
       <div class="cart-drawer-inner">
-        <div class="modal-header">
+        <div class="cart-header">
           <button class="back-icon-btn" onclick="backToCart()">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <h2>Оформление</h2>
-          <button class="close-btn" onclick="document.getElementById('checkoutModal').classList.remove('open'); document.getElementById('checkoutBackdrop').classList.remove('open'); document.body.style.overflow='';">×</button>
+          <button class="modal-close-btn" onclick="document.getElementById('checkoutModal').classList.remove('open'); document.getElementById('checkoutBackdrop').classList.remove('open'); document.body.style.overflow='';">×</button>
         </div>
         <div class="cart-body">
           <div id="checkoutSummary" class="checkout-summary"></div>
