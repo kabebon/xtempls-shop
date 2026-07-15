@@ -27,7 +27,9 @@ fetch(`${API}/config`)
 // Fill footer contact elements from config (elements are optional per page).
 function applySiteConfig() {
   const tgEl = document.getElementById('footerTelegram');
-  if (tgEl) tgEl.textContent = siteConfig.contact_telegram ? `@${siteConfig.contact_telegram}` : '';
+  if (tgEl && siteConfig.contact_telegram) {
+    tgEl.textContent = `@${siteConfig.contact_telegram.replace(/^@/, '')}`;
+  }
 }
 
 // ── Cart State (localStorage) ─────────────────────────────────────────────────
