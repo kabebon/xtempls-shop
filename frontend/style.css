@@ -1306,13 +1306,7 @@ body {
     padding: 10px 0 0 !important;
   }
 
-  .back-btn {
-    margin: 30px auto 0 !important;
-    max-width: 1120px;
-    padding: 0 40px !important;
-    position: relative !important;
-    display: inline-flex !important;
-  }
+
 }
 
 /* Nice animations for detail selectors and elements */
