@@ -636,7 +636,18 @@ if (isCatalogPage) {
       allProducts = reset ? data.items : [...allProducts, ...data.items];
 
       if (reset) {
-        if (titleEl) titleEl.textContent = currentCategory ? 'Товары' : 'Каталог';
+        if (titleEl) {
+          let activeCatName = 'Каталог';
+          if (currentCategory) {
+            const activeBtn = document.querySelector(`.cat-btn[data-id="${currentCategory}"]`);
+            if (activeBtn) {
+              activeCatName = activeBtn.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
+            } else {
+              activeCatName = 'Товары';
+            }
+          }
+          titleEl.textContent = activeCatName;
+        }
         if (countEl) countEl.textContent = data.total > 0 ? `${data.total} товаров` : '';
       }
 
@@ -922,7 +933,11 @@ if (isProductPage) {
     const modal = document.getElementById('sizeChartModal');
     const body = document.getElementById('sizeChartBody');
     if (!modal || !body || !chart) return;
-    const rows = Object.entries(chart).map(([size, desc]) =>
+    let chartObj = chart;
+    if (typeof chartObj === 'string') {
+      try { chartObj = JSON.parse(chartObj); } catch (e) { return; }
+    }
+    const rows = Object.entries(chartObj).map(([size, desc]) =>
       `<tr><td class="sc-size">${size}</td><td class="sc-desc">${desc}</td></tr>`
     ).join('');
     body.innerHTML = `<table class="size-chart-table"><thead><tr><th>Размер</th><th>Параметры</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -1076,9 +1091,13 @@ if (isProductPage) {
       // Size chart link
       const sizeChartLink = document.getElementById('sizeChartLink');
       if (sizeChartLink) {
-        if (p.size_chart && Object.keys(p.size_chart).length > 0) {
+        let chart = p.size_chart;
+        if (typeof chart === 'string') {
+          try { chart = JSON.parse(chart); } catch (e) { chart = null; }
+        }
+        if (chart && Object.keys(chart).length > 0) {
           sizeChartLink.style.display = 'inline-flex';
-          sizeChartLink.onclick = () => openSizeChart(p.size_chart);
+          sizeChartLink.onclick = () => openSizeChart(chart);
         } else {
           sizeChartLink.style.display = 'none';
         }
