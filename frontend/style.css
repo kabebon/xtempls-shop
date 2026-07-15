@@ -1120,6 +1120,15 @@ body {
          transform-origin: left top; 
  } 
 
+/* ── Safe area overrides for notch / status bar in Telegram Web App ── */
+@media (max-width: 768px) {
+  .s-main-type-11__navigation {
+    top: calc(env(safe-area-inset-top, 0px) + 12px) !important;
+  }
+  .sb-header-default__burger {
+    right: 16px !important;
+  }
+}
 
 /* ── Premium E-Commerce Enhancements ── */
 
