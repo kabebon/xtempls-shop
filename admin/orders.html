@@ -305,6 +305,11 @@
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Комментарий</div>
           <div style="color:var(--text-sec);font-size:13px;">${o.comment}</div>
         </div>` : ''}
+        ${o.delivery_address ? `
+        <div style="grid-column:1/-1;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Адрес доставки</div>
+          <div style="color:var(--text-sec);font-size:13px;">${o.delivery_address}</div>
+        </div>` : ''}
       </div>
       <div style="border-top:1px solid var(--border);padding-top:16px;">
         <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Позиции</div>
@@ -336,10 +341,8 @@
     });
   };
 
-  // Close on overlay click
-  document.getElementById('orderModal').addEventListener('click', function(e) {
-    if (e.target === this) closeOrderModal();
-  });
+  // Close on overlay click (drag-safe).
+  enableOverlayClose(document.getElementById('orderModal'), closeOrderModal);
 
   // ── Broadcast ──────────────────────────────────────────────────────────────
 
@@ -409,9 +412,7 @@
     setTimeout(poll, 1500);
   };
 
-  document.getElementById('broadcastModal').addEventListener('click', function(e) {
-    if (e.target === this) closeBroadcastModal();
-  });
+  enableOverlayClose(document.getElementById('broadcastModal'), closeBroadcastModal);
 
   // Load new orders badge
   async function loadBadge() {

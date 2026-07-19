@@ -348,6 +348,7 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
         tg_user_chat_id=data.tg_user_chat_id,
         customer_name=data.customer_name,
         customer_contact=data.customer_contact,
+        delivery_address=getattr(data, "delivery_address", None),
         comment=data.comment,
         order_type=getattr(data, "order_type", None),
     )

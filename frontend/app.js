@@ -36,6 +36,16 @@ function applySiteConfig() {
 
 let cart = JSON.parse(localStorage.getItem('xtempls_cart') || '[]');
 
+// Re-read cart from storage. Used before rendering so a stale in-memory copy
+// (e.g. after the page's framework JS reset state) never shows an empty cart.
+function reloadCart() {
+  try {
+    cart = JSON.parse(localStorage.getItem('xtempls_cart') || '[]');
+  } catch (e) {
+    cart = [];
+  }
+}
+
 function saveCart() {
   localStorage.setItem('xtempls_cart', JSON.stringify(cart));
   updateCartBadge();
@@ -128,6 +138,7 @@ function cartTotal() {
 // ── Cart Modal ────────────────────────────────────────────────────────────────
 
 window.openCart = function() {
+  reloadCart(); // always read fresh state in case other tabs/pages changed it
   renderCartItems();
   const modal = document.getElementById('cartModal');
   const backdrop = document.getElementById('cartBackdrop');
@@ -139,6 +150,38 @@ window.openCart = function() {
 window.closeCart = function() {
   const modal = document.getElementById('cartModal');
   const backdrop = document.getElementById('cartBackdrop');
+  if (modal) modal.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+// ── Support dialog ────────────────────────────────────────────────────────────
+// The store owner wants a support button next to the cart that opens an
+// in-site dialog and forwards the user to the manager's Telegram account.
+window.openSupport = function() {
+  const modal = document.getElementById('supportModal');
+  const backdrop = document.getElementById('supportBackdrop');
+  if (modal) modal.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // Populate the Telegram link from config (manager_username/contact_telegram),
+  // falling back to the default store account.
+  const username = (siteConfig.manager_username || siteConfig.contact_telegram || 'xtempls_wear').replace(/^@/, '');
+  const link = document.getElementById('supportTgLink');
+  if (link) {
+    link.href = `https://t.me/${username}`;
+    // Rewrite the whole label so we don't depend on fragile child-node lookups.
+    link.innerHTML = `
+      <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+      </svg>
+      Написать в Telegram @${username}`;
+  }
+};
+
+window.closeSupport = function() {
+  const modal = document.getElementById('supportModal');
+  const backdrop = document.getElementById('supportBackdrop');
   if (modal) modal.classList.remove('open');
   if (backdrop) backdrop.classList.remove('open');
   document.body.style.overflow = '';
@@ -274,16 +317,32 @@ function renderCartItems() {
 
 // ── Order Submission ──────────────────────────────────────────────────────────
 
-window.submitOrder = async function() {
+window.submitOrder = async function(e) {
+  if (e) e.preventDefault();
   const name = document.getElementById('chkName')?.value.trim();
   const contact = document.getElementById('chkContact')?.value.trim();
+  const address = document.getElementById('chkAddress')?.value.trim();
   const comment = document.getElementById('chkComment')?.value.trim();
+  const consent = document.getElementById('chkConsent')?.checked;
 
-  if (!name || !contact) {
-    showToast('Заполните имя и контакт');
+  // Client-side validation mirrors the server-side rules so the user gets
+  // immediate feedback instead of a generic "send error".
+  if (!name || name.length < 2) {
+    showToast('Введите имя и фамилию (минимум 2 символа)');
     return;
   }
-
+  if (!contact || contact.length < 3) {
+    showToast('Введите корректный контакт (телефон или Telegram)');
+    return;
+  }
+  if (!address || address.length < 5) {
+    showToast('Укажите адрес доставки (минимум 5 символов)');
+    return;
+  }
+  if (!consent) {
+    showToast('Необходимо согласие с офертой и политикой конфиденциальности');
+    return;
+  }
   if (cart.length === 0) {
     showToast('Корзина пуста');
     return;
@@ -296,9 +355,11 @@ window.submitOrder = async function() {
     const body = {
       customer_name: name,
       customer_contact: contact,
+      delivery_address: address,
       comment: comment || null,
       tg_init_data: tg?.initData || null,
       promo_code: window._appliedPromo?.code || null,
+      consent_accepted: true,
       items: cart.map(i => ({
         product_id: i.product_id,
         size: i.size,
@@ -318,44 +379,57 @@ window.submitOrder = async function() {
       return;
     }
 
-    // Clear cart
+    // Clear cart completely (in memory + localStorage + badge + drawer body).
     cart = [];
-    saveCart();
+    localStorage.removeItem('xtempls_cart');
     window._appliedPromo = null;
+    updateCartBadge();
 
-    // Show success
+    // Replace the checkout drawer body with a success screen that has
+    // explicit "Close" and "Go home" buttons (instead of auto-dropping the
+    // user back into the catalog with no feedback).
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
     const checkoutFooter = document.getElementById('checkoutModal')?.querySelector('.cart-footer');
     if (checkoutBody) {
       checkoutBody.innerHTML = `
         <div class="order-success">
           <div class="success-icon">✅</div>
-          <div class="success-title">Заказ принят!</div>
+          <div class="success-title">Спасибо за заказ!</div>
           <div class="success-text">
-            Спасибо, ${name}!<br/>
-            Менеджер свяжется с вами по контакту<br/>
-            <strong>${contact}</strong>
+            ${name}, ваш заказ принят.<br/>
+            Мы свяжемся с вами по контакту<br/>
+            <strong>${contact}</strong><br/><br/>
+            Менеджер скоро ответит вам.
+          </div>
+          <div class="success-actions">
+            <button class="btn-success-close" onclick="closeSuccessAndGo('close')">Закрыть</button>
+            <button class="btn-success-home" onclick="closeSuccessAndGo('home')">На главную</button>
           </div>
         </div>
       `;
     }
     if (checkoutFooter) checkoutFooter.style.display = 'none';
 
-    // Auto-close after 3s
-    setTimeout(() => {
-      const checkoutModal = document.getElementById('checkoutModal');
-      const checkoutBackdrop = document.getElementById('checkoutBackdrop');
-      if (checkoutModal) checkoutModal.classList.remove('open');
-      if (checkoutBackdrop) { checkoutBackdrop.classList.remove('open'); checkoutBackdrop.style.display = '';
-      }
-      document.body.style.overflow = '';
-    }, 3500);
-
   } catch (e) {
     showToast('Ошибка соединения');
     console.error(e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Отправить заказ'; }
+  }
+};
+
+// Close the success screen either to the underlying page or to the home page.
+window.closeSuccessAndGo = function(action) {
+  const checkoutModal = document.getElementById('checkoutModal');
+  const checkoutBackdrop = document.getElementById('checkoutBackdrop');
+  if (checkoutModal) checkoutModal.classList.remove('open');
+  if (checkoutBackdrop) {
+    checkoutBackdrop.classList.remove('open');
+    checkoutBackdrop.style.display = '';
+  }
+  document.body.style.overflow = '';
+  if (action === 'home') {
+    window.location.href = '/';
   }
 };
 
@@ -367,6 +441,17 @@ function injectCartUI() {
   const html = `
     <!-- Cart Backdrop -->
     <div id="cartBackdrop" class="cart-backdrop" onclick="closeCart()"></div>
+
+    <!-- Support Backdrop -->
+    <div id="supportBackdrop" class="cart-backdrop" onclick="closeSupport()"></div>
+
+    <!-- Support FAB (above the cart FAB) -->
+    <div class="support-fab" onclick="openSupport()" title="Поддержка" aria-label="Поддержка">
+      <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+    </div>
 
     <!-- FAB -->
     <div class="cart-btn" onclick="openCart()" style="position:fixed; bottom:20px; right:20px; z-index:999999;">
@@ -416,9 +501,11 @@ function injectCartUI() {
           </div>
           <form id="checkoutForm" class="checkout-form" onsubmit="submitOrder(event)">
             <label class="chk-label">Имя и Фамилия</label>
-            <input type="text" id="chkName" class="chk-input" required placeholder="Иван Иванов" />
+            <input type="text" id="chkName" class="chk-input" required minlength="2" placeholder="Иван Иванов" />
             <label class="chk-label">Телефон или Telegram</label>
-            <input type="text" id="chkContact" class="chk-input" required placeholder="@username или +7..." />
+            <input type="text" id="chkContact" class="chk-input" required minlength="3" placeholder="@username или +7..." />
+            <label class="chk-label">Адрес доставки *</label>
+            <textarea id="chkAddress" class="chk-input" required minlength="5" rows="2" placeholder="Город, улица, дом, квартира, индекс"></textarea>
             <label class="chk-label">Промокод</label>
             <div class="promo-row">
               <input type="text" id="chkPromo" class="chk-input promo-input" placeholder="Введите промокод" />
@@ -426,9 +513,43 @@ function injectCartUI() {
             </div>
             <div id="promoMsg" class="promo-msg"></div>
             <label class="chk-label">Комментарий к заказу</label>
-            <textarea id="chkComment" class="chk-input" placeholder="Город доставки, пожелания и т.д." rows="2"></textarea>
+            <textarea id="chkComment" class="chk-input" placeholder="Пожелания и т.д." rows="2"></textarea>
+            <label class="chk-consent-row">
+              <input type="checkbox" id="chkConsent" />
+              <span class="chk-consent-text">
+                Я согласен с <a href="/public.html" target="_blank" class="chk-consent-link">офертой</a>
+                и <a href="/public.html" target="_blank" class="chk-consent-link">политикой конфиденциальности</a>
+              </span>
+            </label>
             <button type="submit" id="submitOrderBtn" class="checkout-submit-btn">Отправить заказ</button>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Support Drawer -->
+    <div id="supportModal" class="cart-drawer">
+      <div class="cart-drawer-inner">
+        <div class="cart-header">
+          <h2 class="cart-title" style="margin:0;">Поддержка</h2>
+          <button class="modal-close-btn" onclick="closeSupport()">×</button>
+        </div>
+        <div class="cart-body" style="padding:24px;">
+          <div style="font-size:14px;line-height:1.6;color:var(--text-secondary,#444);margin-bottom:20px;">
+            Есть вопрос по заказу, размеру или доставке?<br/>
+            Напишите нам — обычно отвечаем в течение нескольких часов.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <a id="supportTgLink" class="support-cta" href="https://t.me/xtempls_wear" target="_blank" rel="noopener">
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+              </svg>
+              Написать в Telegram @xtempls_wear
+            </a>
+          </div>
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border,#eee);font-size:13px;color:var(--text-muted,#777);">
+            Или откройте <a href="/public.html" style="color:var(--accent,#2E3359);">уголок покупателя</a> — там оферта, политика конфиденциальности и реквизиты.
+          </div>
         </div>
       </div>
     </div>
@@ -446,8 +567,38 @@ function injectCartUI() {
   document.body.appendChild(div);
 }
 
-injectCartUI();
-updateCartBadge();
+// Inject cart UI as soon as <body> is available, then refresh the badge.
+// On the catalog page the framework CSS is heavy and <body> can still be
+// parsing when this script (deferred) runs — so wait for DOMContentLoaded
+// if body isn't ready, otherwise the injected FAB and badge don't appear
+// and the cart looks "empty" there.
+function initCartUI() {
+  injectCartUI();
+  reloadCart();
+  updateCartBadge();
+}
+
+if (document.body) {
+  initCartUI();
+} else {
+  document.addEventListener('DOMContentLoaded', initCartUI);
+}
+
+// Keep the badge in sync if another tab modifies the cart.
+window.addEventListener('storage', (e) => {
+  if (e.key === 'xtempls_cart') {
+    reloadCart();
+    updateCartBadge();
+  }
+});
+
+// Re-sync when the tab becomes visible (user returns from another page/tab).
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    reloadCart();
+    updateCartBadge();
+  }
+});
 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -491,11 +642,16 @@ if (isIndexPage && tg && tg.BackButton.isVisible) {
 // ── CATALOG PAGE ────────────────────────────────────────────────────────────────
 
 if (isCatalogPage) {
-  if (tg) {
+  // Telegram hardware/swipe back button → go to the home page.
+  // We navigate explicitly to "/" rather than history.back(), because on
+  // phones the catalog is often opened as the first entry in the WebApp
+  // history (history.length === 1), where history.back() does nothing and
+  // the back button appears "broken".
+  if (tg?.BackButton) {
     tg.BackButton.show();
-    tg.BackButton.onClick(() => {
-      window.location.href = '/';
-    });
+    const goHome = () => { window.location.href = '/'; };
+    tg.BackButton.offClick(goHome);
+    tg.BackButton.onClick(goHome);
   }
 
   let currentCategory = '';
@@ -778,6 +934,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const nameInput = document.getElementById('form/0');
       const phoneInput = document.getElementById('form/1');
+      const consentCheckbox = designForm.querySelector('input[type="checkbox"][data-agreement]');
       const submitBtn = designForm.querySelector('input[type="submit"]');
 
       if (!nameInput || !phoneInput) return;
@@ -785,8 +942,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = nameInput.value.trim();
       const phone = phoneInput.value.trim();
 
-      if (!name || !phone) {
-        showToast('Пожалуйста, заполните все поля');
+      // Minimum length checks (was previously only "filled").
+      if (name.length < 2) {
+        showToast('Введите имя (минимум 2 символа)');
+        nameInput.focus();
+        return;
+      }
+      if (phone.length < 5) {
+        showToast('Введите корректный телефон');
+        phoneInput.focus();
+        return;
+      }
+      // Consent must be ticked before a design request can be sent.
+      if (!consentCheckbox || !consentCheckbox.checked) {
+        showToast('Необходимо согласие с офертой и политикой конфиденциальности');
         return;
       }
 
@@ -802,6 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
           comment: 'Заявка на индивидуальный дизайн',
           order_type: 'design',
           tg_init_data: tg?.initData || null,
+          consent_accepted: true,
           items: [] // Empty items for design request
         };
 
@@ -812,13 +982,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (!res.ok) {
-          throw new Error('Server error');
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Server error');
         }
 
         // Show success msg
         const successMsg = document.querySelector('[data-status-success]');
         if (successMsg) successMsg.style.display = 'block';
-        
+
         const errorMsg = document.querySelector('[data-status-error]');
         if (errorMsg) errorMsg.style.display = 'none';
 
@@ -827,7 +998,12 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error(err);
         const errorMsg = document.querySelector('[data-status-error]');
-        if (errorMsg) errorMsg.style.display = 'block';
+        if (errorMsg) {
+          errorMsg.style.display = 'block';
+          // Surface the actual server-side reason if we have one.
+          const reason = err && err.message ? err.message : '';
+          if (reason) errorMsg.textContent = 'Ошибка: ' + reason;
+        }
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -865,18 +1041,27 @@ if (isProductPage) {
   let currentImg = 0;
   let selectedSize = null;
 
-  // Back navigation
-  backBtn.addEventListener('click', () => {
+  // Back navigation. Prefer history.back() when there's somewhere to go back
+  // to, otherwise fall back to the catalog. This fixes "back button does
+  // nothing" on phones when a product link was opened directly.
+  const goBack = () => {
     if (tg?.BackButton?.isVisible) {
       tg.BackButton.hide();
     }
-    history.back();
-  });
+    if (window.history.length > 1 && document.referrer && document.referrer !== window.location.href) {
+      window.history.back();
+    } else {
+      window.location.href = '/catalog.html';
+    }
+  };
 
-  // Telegram back button
-  if (tg) {
+  backBtn.addEventListener('click', goBack);
+
+  // Telegram hardware/swipe back button — same behavior.
+  if (tg?.BackButton) {
     tg.BackButton.show();
-    tg.BackButton.onClick(() => history.back());
+    tg.BackButton.offClick(goBack);
+    tg.BackButton.onClick(goBack);
   }
 
   // Gallery navigation

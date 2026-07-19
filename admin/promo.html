@@ -219,9 +219,7 @@
     this.value = this.value.toUpperCase();
   });
 
-  document.getElementById('createModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCreateModal();
-  });
+  enableOverlayClose(document.getElementById('createModal'), closeCreateModal);
 
   loadPromos();
 </script>

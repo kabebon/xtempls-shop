@@ -7,6 +7,7 @@ import asyncio
 import httpx
 import logging
 from datetime import datetime, timezone
+from html import escape as html_escape
 from database import settings
 
 logger = logging.getLogger(__name__)
@@ -25,23 +26,50 @@ _broadcast_status: dict = {
 
 
 async def send_message(chat_id: int, text: str, parse_mode: str = "HTML") -> bool:
-    """Send a Telegram message to a specific chat_id."""
+    """Send a Telegram message to a specific chat_id.
+
+    Retries on transient network/Telegram 5xx errors so a single flaky request
+    does not silently drop a manager notification (which is what caused orders
+    to "go missing" in Telegram previously).
+    """
     if not settings.telegram_bot_token:
         logger.warning("TELEGRAM_BOT_TOKEN not set, skipping notification")
         return False
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"{TG_API}/bot{settings.telegram_bot_token}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
-            )
-            if not resp.is_success:
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{TG_API}/bot{settings.telegram_bot_token}/sendMessage",
+                    json={"chat_id": chat_id, "text": text, "parse_mode": parse_mode},
+                )
+                if resp.is_success:
+                    return True
+                # 429 (rate limited) / 5xx → retry with backoff.
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+                    retry_after = 1.0
+                    try:
+                        body = resp.json()
+                        retry_after = float(body.get("parameters", {}).get("retry_after", 1.0))
+                    except Exception:
+                        pass
+                    await asyncio.sleep(min(retry_after, 3.0))
+                    continue
+                # 4xx (bad chat_id, blocked bot, etc.) — don't retry.
                 logger.error(f"Telegram API error: {resp.text}")
                 return False
-            return True
-    except Exception as e:
-        logger.error(f"Failed to send Telegram message: {e}")
-        return False
+        except (httpx.TimeoutException, httpx.TransportError) as e:
+            last_error = str(e)
+            logger.warning(f"Telegram transient error (attempt {attempt+1}): {e}")
+            await asyncio.sleep(1.5 * (attempt + 1))
+        except Exception as e:
+            logger.error(f"Failed to send Telegram message: {e}")
+            return False
+
+    logger.error(f"Telegram message to {chat_id} failed after retries: {last_error}")
+    return False
 
 
 async def notify_manager_new_order(order) -> bool:
@@ -51,19 +79,32 @@ async def notify_manager_new_order(order) -> bool:
         return False
 
     items_text = "\n".join(
-        f"  • {item.product_name}"
-        f"{' (' + item.size + ')' if item.size else ''}"
+        f"  • {html_escape(item.product_name)}"
+        f"{' (' + html_escape(item.size) + ')' if item.size else ''}"
         f" × {item.quantity} — {int(item.product_price * item.quantity):,} ₽"
         for item in order.items
     )
     total = sum(item.product_price * item.quantity for item in order.items)
 
+    is_design = getattr(order, "order_type", None) and str(order.order_type).endswith("design")
+    type_label = "🎨 <b>Заявка на дизайн #{}</b>".format(order.id) if is_design \
+        else "🛍 <b>Новый заказ #{}</b>".format(order.id)
+
+    # Escape all free-form customer text so a stray "<" or "&" in the address /
+    # comment / name does not break Telegram's HTML parser and silently drop
+    # the notification (this was a second cause of "missing" order messages).
     text = (
-        f"🛍 <b>Новый заказ #{order.id}</b>\n\n"
-        f"👤 <b>Покупатель:</b> {order.customer_name}\n"
-        f"📞 <b>Контакт:</b> {order.customer_contact}\n"
-        f"{'📝 <b>Комментарий:</b> ' + order.comment + chr(10) if order.comment else ''}"
+        f"{type_label}\n\n"
+        f"👤 <b>Покупатель:</b> {html_escape(order.customer_name or '')}\n"
+        f"📞 <b>Контакт:</b> {html_escape(order.customer_contact or '')}\n"
     )
+
+    delivery_address = getattr(order, "delivery_address", None)
+    if delivery_address:
+        text += f"📦 <b>Адрес доставки:</b> {html_escape(delivery_address)}\n"
+
+    if order.comment:
+        text += f"📝 <b>Комментарий:</b> {html_escape(order.comment)}\n"
     
     if order.items:
         text += f"\n<b>Товары:</b>\n{items_text}\n\n💰 <b>Итого: {int(total):,} ₽</b>\n\n"

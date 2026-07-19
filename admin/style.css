@@ -760,12 +760,43 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .confirm-btns { display: flex; gap: 10px; justify-content: center; }
 
 /* ── Responsive ── */
+/* Mobile hamburger to toggle the off-canvas sidebar. */
+.mobile-menu-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 49;
+}
+
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
-  .sidebar { transform: translateX(-240px); }
+  .sidebar {
+    transform: translateX(-240px);
+    transition: transform 0.25s ease;
+    z-index: 50;
+    box-shadow: 0 0 40px rgba(0,0,0,0.5);
+  }
   .sidebar.open { transform: translateX(0); --sidebar-w: 240px; }
   .main-content { margin-left: 0; }
   .form-grid { grid-template-columns: 1fr; }
+  .mobile-menu-toggle { display: inline-flex; }
+  .topbar { padding: 14px 16px; }
+  .topbar-title { font-size: 16px; }
 }
 
 /* ── Drag & Drop images ── */

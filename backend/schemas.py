@@ -206,14 +206,19 @@ class OrderItemCreate(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    customer_name: str = Field(..., max_length=150)
-    customer_contact: str = Field(..., max_length=200)
-    comment: Optional[str] = None
+    customer_name: str = Field(..., min_length=2, max_length=150)
+    customer_contact: str = Field(..., min_length=3, max_length=200)
+    delivery_address: Optional[str] = Field(None, max_length=1000)
+    comment: Optional[str] = Field(None, max_length=2000)
     items: List[OrderItemCreate] = Field(default_factory=list)
     tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
     tg_init_data: Optional[str] = None
     order_type: OrderType = OrderType.catalog
     promo_code: Optional[str] = None  # promo code applied at checkout
+    consent_accepted: bool = Field(
+        False,
+        description="Customer must accept the offer & privacy policy to submit.",
+    )
 
 
 class OrderItemOut(BaseModel):
@@ -232,6 +237,7 @@ class OrderOut(BaseModel):
     id: int
     customer_name: str
     customer_contact: str
+    delivery_address: Optional[str] = None
     comment: Optional[str] = None
     status: str
     order_type: str

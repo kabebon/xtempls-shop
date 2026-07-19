@@ -254,9 +254,7 @@
     });
   };
 
-  document.getElementById('catModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCatModal();
-  });
+  enableOverlayClose(document.getElementById('catModal'), closeCatModal);
 
   loadCats();
 </script>

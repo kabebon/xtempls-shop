@@ -119,6 +119,7 @@ class Order(Base):
     tg_user_chat_id = Column(BigInteger, ForeignKey("tg_users.chat_id", ondelete="SET NULL"), nullable=True)
     customer_name = Column(String(150), nullable=False)
     customer_contact = Column(String(200), nullable=False)  # phone or @username
+    delivery_address = Column(Text, nullable=True)          # shipping address
     comment = Column(Text, nullable=True)
     status = Column(SAEnum(OrderStatus), default=OrderStatus.new, nullable=False)
     order_type = Column(SAEnum(OrderType), default=OrderType.catalog, nullable=False)

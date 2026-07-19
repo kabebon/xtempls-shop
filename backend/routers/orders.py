@@ -47,6 +47,26 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     if not data.items and not is_design:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
 
+    # Legal requirement: the customer must accept the offer & privacy policy.
+    if not data.consent_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="Необходимо согласие с офертой и политикой конфиденциальности",
+        )
+
+    # Catalog orders must carry a shipping address.
+    if not is_design:
+        addr = (data.delivery_address or "").strip()
+        if len(addr) < 5:
+            raise HTTPException(
+                status_code=400,
+                detail="Укажите адрес доставки (минимум 5 символов)",
+            )
+        data.delivery_address = addr
+    else:
+        # Design requests have no shipping.
+        data.delivery_address = None
+
     # Resolve a TRUSTED chat_id from the Telegram-signed initData.
     # Ignore any tg_user_chat_id coming from the client body.
     verified_chat_id: Optional[int] = None

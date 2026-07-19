@@ -664,10 +664,9 @@
     }, 400);
   });
 
-  // Close modal on overlay click
-  document.getElementById('productModal').addEventListener('click', function(e) {
-    if (e.target === this) closeProductModal();
-  });
+  // Close modal on overlay click (but not when the gesture started inside
+  // the modal — e.g. releasing a text-selection drag on the overlay).
+  enableOverlayClose(document.getElementById('productModal'), closeProductModal);
 
   // Init
   (async () => {

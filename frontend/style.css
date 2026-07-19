@@ -1130,6 +1130,110 @@ body {
   }
 }
 
+/* ── Support FAB (sits above the cart FAB) ── */
+.support-fab {
+  position: fixed;
+  bottom: 88px;
+  right: 28px;
+  z-index: 999998;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ffffff, #e8ecf6);
+  color: #2E3359;
+  border: 1px solid rgba(46, 51, 89, 0.15);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  transition: all var(--transition);
+}
+.support-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.24);
+}
+
+.support-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4C5A9E, #2E3359);
+  color: #fff !important;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(46, 51, 89, 0.25);
+  transition: all var(--transition);
+}
+.support-cta:hover { transform: translateY(-1px); }
+
+/* ── Checkout consent + success actions ── */
+.chk-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-secondary, #444);
+  cursor: pointer;
+}
+.chk-consent-row input[type="checkbox"] {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: #2E3359;
+}
+.chk-consent-text { line-height: 1.45; }
+.chk-consent-link {
+  color: var(--accent, #2E3359);
+  text-decoration: underline;
+}
+
+.order-success { text-align: center; padding: 30px 20px; }
+.success-icon { font-size: 56px; margin-bottom: 12px; }
+.success-title { font-size: 22px; font-weight: 800; margin-bottom: 10px; color: var(--text-primary, #111); }
+.success-text { font-size: 14px; color: var(--text-secondary, #444); line-height: 1.6; margin-bottom: 24px; }
+.success-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.btn-success-close, .btn-success-home {
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition);
+}
+.btn-success-close {
+  background: var(--bg-elevated, #fff);
+  color: var(--text-primary, #111);
+  border: 1px solid var(--border, rgba(0,0,0,0.12));
+}
+.btn-success-home {
+  background: linear-gradient(135deg, #4C5A9E, #2E3359);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(46, 51, 89, 0.25);
+}
+.btn-success-close:hover, .btn-success-home:hover { transform: translateY(-1px); }
+
+/* Desktop: keep the cart drawer close button obviously visible & clickable. */
+@media (min-width: 481px) {
+  .modal-close-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1;
+  }
+}
+
 /* ── Premium E-Commerce Enhancements ── */
 
 /* Page Load Fade In Animation */
@@ -1675,17 +1779,16 @@ body {
   }
 }
 
- / *   F l o a t i n g   L a b e l   F i x   f o r   d e s i g n . h t m l   * / 
- . s b - i n p u t _ _ f i e l d : f o c u s   +   . s b - i n p u t _ _ p l a c e h o l d e r , 
- . s b - i n p u t _ _ f i e l d : v a l i d   +   . s b - i n p u t _ _ p l a c e h o l d e r   { 
-         t r a n s f o r m :   t r a n s l a t e Y ( - 2 0 p x )   s c a l e ( 0 . 8 5 ) ; 
-         c o l o r :   # 4 2 4 2 4 2 ; 
-         t r a n s i t i o n :   0 . 2 s   e a s e   a l l ; 
- } 
- . s b - i n p u t _ _ p l a c e h o l d e r   { 
-         t r a n s i t i o n :   0 . 2 s   e a s e   a l l ; 
-         p o i n t e r - e v e n t s :   n o n e ; 
-         t r a n s f o r m - o r i g i n :   l e f t   t o p ; 
- } 
-  
- 
+/* Floating Label Fix for design.html */
+.sb-input__field:focus + .sb-input__placeholder,
+.sb-input__field:valid + .sb-input__placeholder {
+    transform: translateY(-20px) scale(0.85);
+    color: #424242;
+    transition: 0.2s ease all;
+}
+.sb-input__placeholder {
+    transition: 0.2s ease all;
+    pointer-events: none;
+    transform-origin: left top;
+}
+
