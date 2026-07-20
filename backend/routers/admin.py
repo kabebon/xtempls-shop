@@ -18,7 +18,7 @@ from schemas import (
     ProductCreate, ProductUpdate, ProductOut, ProductListResponse,
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
     AdminUserCreate, AdminUserUpdate,
-    OrderOut, OrderListResponse, OrderStatusUpdate, BroadcastRequest,
+    OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, BroadcastRequest,
     PromoCodeCreate, PromoCodeOut, ImageReorderRequest
 )
 from models import AdminUser
@@ -335,16 +335,55 @@ async def admin_update_order_status(
     return order
 
 
+@router.put("/admin/orders/{order_id}/note", response_model=OrderOut)
+async def admin_update_order_note(
+    order_id: int,
+    data: OrderNoteUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Сохраняет/обновляет внутренние заметки менеджера по заказу."""
+    order = await crud.update_order_note(db, order_id, data.admin_note)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
 @router.delete("/admin/orders/{order_id}", status_code=204)
 async def admin_delete_order(
     order_id: int,
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
+    """Soft-delete: заказ попадает в корзину, оттуда его можно восстановить."""
     order = await crud.get_order(db, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     await crud.delete_order(db, order_id)
+
+
+@router.get("/admin/orders/trash", response_model=OrderListResponse)
+async def admin_list_trashed_orders(
+    page: int = 1,
+    per_page: int = 20,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Список заказов в корзине (мягко удалённых)."""
+    return await crud.get_trashed_orders(db, page=page, per_page=per_page)
+
+
+@router.post("/admin/orders/{order_id}/restore", response_model=OrderOut)
+async def admin_restore_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Восстанавливает заказ из корзины."""
+    order = await crud.restore_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found in trash")
+    return order
 
 
 # ── Admin: Broadcast ─────────────────────────────────────────────────

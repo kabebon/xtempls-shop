@@ -1180,14 +1180,35 @@ body {
   font-size: 13px;
   color: var(--text-secondary, #444);
   cursor: pointer;
+  /* Гарантируем что вся строка видна на мобильных и не перекрыта другими элементами */
+  position: relative;
+  z-index: 5;
+  padding: 8px 0;
 }
-.chk-consent-row input[type="checkbox"] {
+/* Чекбокс согласия должен быть всегда видим и кликабелен.
+   На catalog.html подключён внешний CSS-фреймворк, который глобально сбрасывает
+   appearance у чекбоксов — поэтому усиливаем специфичность и явно возвращаем
+   нативный вид, включая мобильные WebKit (iOS/Android в Telegram miniapp). */
+.chk-consent-row input[type="checkbox"],
+#chkConsent,
+form#checkoutForm input[type="checkbox"] {
+  -webkit-appearance: auto !important;
+  appearance: auto !important;
   margin-top: 3px;
-  width: 18px;
-  height: 18px;
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px;
+  min-height: 22px;
   flex-shrink: 0;
   cursor: pointer;
   accent-color: #2E3359;
+  /* Видимый контур чтобы чекбокс не сливался с фоном на светлых/тёмных темах */
+  outline: 1px solid rgba(0, 0, 0, 0.25);
+  outline-offset: 1px;
+  background: #fff;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: inline-block !important;
 }
 .chk-consent-text { line-height: 1.45; }
 .chk-consent-link {

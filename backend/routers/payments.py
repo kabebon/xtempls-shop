@@ -238,10 +238,23 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_
         for item in order.items
     )
 
+    phone = getattr(order, "customer_phone", None)
+    tg = getattr(order, "customer_telegram", None)
+    legacy = getattr(order, "customer_contact", None)
+    if phone or tg:
+        contact_lines = ""
+        if phone:
+            contact_lines += f"📞 <b>Телефон:</b> {html_escape(phone)}\n"
+        if tg:
+            contact_lines += f"💬 <b>Telegram:</b> @{html_escape(str(tg).lstrip('@'))}\n"
+        contact_lines = contact_lines.rstrip("\n")
+    else:
+        contact_lines = f"📞 <b>Контакт:</b> {html_escape(legacy or '')}"
+
     text = (
         f"💚 <b>Заказ #{order.id} ОПЛАЧЕН!</b>\n\n"
         f"👤 <b>Покупатель:</b> {html_escape(order.customer_name or '')}\n"
-        f"📞 <b>Контакт:</b> {html_escape(order.customer_contact or '')}\n"
+        f"{contact_lines}\n"
     )
 
     delivery_address = getattr(order, "delivery_address", None)

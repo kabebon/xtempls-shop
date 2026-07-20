@@ -347,7 +347,9 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
     order = Order(
         tg_user_chat_id=data.tg_user_chat_id,
         customer_name=data.customer_name,
-        customer_contact=data.customer_contact,
+        customer_phone=getattr(data, "customer_phone", None),
+        customer_telegram=getattr(data, "customer_telegram", None),
+        customer_contact=getattr(data, "customer_contact", None),
         delivery_address=getattr(data, "delivery_address", None),
         comment=data.comment,
         order_type=getattr(data, "order_type", None),
@@ -406,6 +408,8 @@ async def get_order(db: AsyncSession, order_id: int) -> Optional[Order]:
 async def get_orders(db: AsyncSession, page: int = 1, per_page: int = 20,
                      status: str = None) -> dict:
     q = select(Order).options(selectinload(Order.items))
+    # Soft-delete: активные заказы имеют is_deleted == False
+    q = q.where(Order.is_deleted == False)
     if status:
         try:
             q = q.where(Order.status == OrderStatus(status))
@@ -433,16 +437,70 @@ async def update_order_status(db: AsyncSession, order_id: int, status: str) -> O
     return await get_order(db, order_id)
 
 
-async def delete_order(db: AsyncSession, order_id: int):
-    await db.execute(delete(Order).where(Order.id == order_id))
+async def update_order_note(db: AsyncSession, order_id: int,
+                            admin_note: Optional[str]) -> Optional[Order]:
+    """Сохраняет/обновляет внутренние заметки менеджера по заказу."""
+    note = (admin_note or "").strip() or None
+    result = await db.execute(
+        update(Order).where(Order.id == order_id).values(admin_note=note)
+    )
+    if result.rowcount == 0:
+        return None
     await db.commit()
+    return await get_order(db, order_id)
+
+
+async def delete_order(db: AsyncSession, order_id: int) -> bool:
+    """Soft-delete: помечаем заказ как удалённый (попадает в корзину админки).
+    Возвращает True если заказ существовал и был удалён."""
+    from datetime import datetime, timezone
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order_id)
+        .where(Order.is_deleted == False)
+        .values(is_deleted=True, deleted_at=datetime.now(timezone.utc))
+    )
+    if result.rowcount == 0:
+        return False
+    await db.commit()
+    return True
+
+
+async def get_trashed_orders(db: AsyncSession, page: int = 1,
+                             per_page: int = 20) -> dict:
+    """Список заказов, удалённых в корзину (is_deleted == True)."""
+    q = select(Order).options(selectinload(Order.items)).where(Order.is_deleted == True)
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar()
+    q = q.order_by(Order.deleted_at.desc().nullslast()).offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(q)
+    return {
+        "items": result.scalars().all(),
+        "total": total,
+        "page": page,
+        "pages": max(1, math.ceil(total / per_page)),
+    }
+
+
+async def restore_order(db: AsyncSession, order_id: int) -> Optional[Order]:
+    """Восстанавливает заказ из корзины (снимает флаг soft-delete)."""
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order_id)
+        .where(Order.is_deleted == True)
+        .values(is_deleted=False, deleted_at=None)
+    )
+    if result.rowcount == 0:
+        return None
+    await db.commit()
+    return await get_order(db, order_id)
 
 
 async def get_orders_count(db: AsyncSession) -> dict:
-    total = (await db.execute(select(func.count()).select_from(Order))).scalar()
-    new_count = (await db.execute(
-        select(func.count()).select_from(Order).where(Order.status == OrderStatus.new)
-    )).scalar()
+    active = select(Order).where(Order.is_deleted == False)
+    total = (await db.execute(select(func.count()).select_from(active.subquery()))).scalar()
+    new_q = active.where(Order.status == OrderStatus.new)
+    new_count = (await db.execute(select(func.count()).select_from(new_q.subquery()))).scalar()
     return {"total": total, "new": new_count}
 
 

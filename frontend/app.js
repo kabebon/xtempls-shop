@@ -212,10 +212,10 @@ window.openCheckout = function() {
     const u = tg.initDataUnsafe.user;
     nameEl.value = [u.first_name, u.last_name].filter(Boolean).join(' ');
   }
-  // Pre-fill username
-  const contactEl = document.getElementById('chkContact');
-  if (contactEl && tg?.initDataUnsafe?.user?.username) {
-    contactEl.value = '@' + tg.initDataUnsafe.user.username;
+  // Pre-fill Telegram username (if available)
+  const telegramEl = document.getElementById('chkTelegram');
+  if (telegramEl && tg?.initDataUnsafe?.user?.username) {
+    telegramEl.value = '@' + tg.initDataUnsafe.user.username;
   }
   // Reset promo
   const promoInput = document.getElementById('chkPromo');
@@ -320,7 +320,8 @@ function renderCartItems() {
 window.submitOrder = async function(e) {
   if (e) e.preventDefault();
   const name = document.getElementById('chkName')?.value.trim();
-  const contact = document.getElementById('chkContact')?.value.trim();
+  const phone = document.getElementById('chkPhone')?.value.trim();
+  const telegramRaw = document.getElementById('chkTelegram')?.value.trim();
   const address = document.getElementById('chkAddress')?.value.trim();
   const comment = document.getElementById('chkComment')?.value.trim();
   const consent = document.getElementById('chkConsent')?.checked;
@@ -331,9 +332,21 @@ window.submitOrder = async function(e) {
     showToast('Введите имя и фамилию (минимум 2 символа)');
     return;
   }
-  if (!contact || contact.length < 3) {
-    showToast('Введите корректный контакт (телефон или Telegram)');
+  // Валидация телефона: + (опц.), затем 7+ цифр, допустимы пробелы/дефисы/скобки.
+  const phoneClean = (phone || '').replace(/[^\d+]/g, '');
+  const phoneDigits = phoneClean.replace(/\D/g, '');
+  if (!phone || phoneDigits.length < 7) {
+    showToast('Введите корректный номер телефона (минимум 7 цифр)');
     return;
+  }
+  // Валидация Telegram (если заполнен): @username, 4–32 символа, латиница/цифры/_.
+  let telegram = telegramRaw;
+  if (telegram) {
+    telegram = telegram.replace(/^@/, '');
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{3,31}$/.test(telegram)) {
+      showToast('Telegram-ник: 4–32 символа, латиница, цифры, подчёркивание');
+      return;
+    }
   }
   if (!address || address.length < 5) {
     showToast('Укажите адрес доставки (минимум 5 символов)');
@@ -354,7 +367,8 @@ window.submitOrder = async function(e) {
   try {
     const body = {
       customer_name: name,
-      customer_contact: contact,
+      customer_phone: phone,
+      customer_telegram: telegram || null,
       delivery_address: address,
       comment: comment || null,
       tg_init_data: tg?.initData || null,
@@ -373,12 +387,16 @@ window.submitOrder = async function(e) {
       body: JSON.stringify(body)
     });
 
-    const orderData = await res.json();
-
+    // Сначала проверяем статус, парсим JSON безопасно (как в дизайновой форме),
+    // иначе при не-JSON ответе (500 HTML) юзер видел «Ошибка соединения»
+    // вместо реальной причины.
     if (!res.ok) {
-      showToast(orderData.detail || 'Ошибка отправки заказа');
+      const err = await res.json().catch(() => ({}));
+      console.error('Order submit failed:', res.status, err);
+      showToast(err.detail || 'Ошибка отправки заказа');
       return;
     }
+    const orderData = await res.json();
 
     // Clear cart completely (in memory + localStorage + badge + drawer body).
     cart = [];
@@ -393,6 +411,7 @@ window.submitOrder = async function(e) {
     }
 
     // Если нет payment_url (например, дизайн), показываем success screen
+    const contactDisplay = phone + (telegram ? ' · @' + telegram : '');
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
     const checkoutFooter = document.getElementById('checkoutModal')?.querySelector('.cart-footer');
     if (checkoutBody) {
@@ -403,7 +422,7 @@ window.submitOrder = async function(e) {
           <div class="success-text">
             ${name}, ваш заказ принят.<br/>
             Мы свяжемся с вами по контакту<br/>
-            <strong>${contact}</strong><br/><br/>
+            <strong>${contactDisplay}</strong><br/><br/>
             Менеджер скоро ответит вам.
           </div>
           <div class="success-actions" style="margin-top: 24px;">
@@ -507,10 +526,12 @@ function injectCartUI() {
           <form id="checkoutForm" class="checkout-form" onsubmit="submitOrder(event)">
             <label class="chk-label">Имя и Фамилия</label>
             <input type="text" id="chkName" class="chk-input" required minlength="2" placeholder="Иван Иванов" />
-            <label class="chk-label">Телефон или Telegram</label>
-            <input type="text" id="chkContact" class="chk-input" required minlength="3" placeholder="@username или +7..." />
+            <label class="chk-label">Телефон *</label>
+            <input type="tel" id="chkPhone" class="chk-input" required placeholder="+7 999 123-45-67" inputmode="tel" />
+            <label class="chk-label">Telegram (необязательно)</label>
+            <input type="text" id="chkTelegram" class="chk-input" placeholder="@username" inputmode="text" />
             <label class="chk-label">Адрес доставки *</label>
-            <textarea id="chkAddress" class="chk-input" required minlength="5" rows="2" placeholder="Город, улица, дом, квартира, индекс"></textarea>
+            <textarea id="chkAddress" class="chk-input" required minlength="5" rows="2" placeholder="Город, улица, дом, квартира"></textarea>
             <label class="chk-label">Промокод</label>
             <div class="promo-row">
               <input type="text" id="chkPromo" class="chk-input promo-input" placeholder="Введите промокод" />

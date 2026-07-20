@@ -93,10 +93,26 @@ async def notify_manager_new_order(order) -> bool:
     # Escape all free-form customer text so a stray "<" or "&" in the address /
     # comment / name does not break Telegram's HTML parser and silently drop
     # the notification (this was a second cause of "missing" order messages).
+    phone = getattr(order, "customer_phone", None)
+    tg = getattr(order, "customer_telegram", None)
+    legacy = getattr(order, "customer_contact", None)
+
+    # Для новых заказов — показываем телефон и Telegram по отдельности.
+    # Для старых (только customer_contact) — показываем как есть.
+    if phone or tg:
+        contact_lines = ""
+        if phone:
+            contact_lines += f"📞 <b>Телефон:</b> {html_escape(phone)}\n"
+        if tg:
+            contact_lines += f"💬 <b>Telegram:</b> @{html_escape(str(tg).lstrip('@'))}\n"
+        contact_lines = contact_lines.rstrip("\n")
+    else:
+        contact_lines = f"📞 <b>Контакт:</b> {html_escape(legacy or '')}"
+
     text = (
         f"{type_label}\n\n"
         f"👤 <b>Покупатель:</b> {html_escape(order.customer_name or '')}\n"
-        f"📞 <b>Контакт:</b> {html_escape(order.customer_contact or '')}\n"
+        f"{contact_lines}\n"
     )
 
     delivery_address = getattr(order, "delivery_address", None)

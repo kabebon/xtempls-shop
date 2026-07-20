@@ -57,6 +57,15 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
             detail="Необходимо согласие с офертой и политикой конфиденциальности",
         )
 
+    # Должен быть указан хотя бы один контакт (телефон или Telegram).
+    # Для новых заказов предпочтительны customer_phone/customer_telegram;
+    # старые клиенты могут присылать только customer_contact (legacy).
+    if not data.customer_phone and not data.customer_telegram and not data.customer_contact:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите телефон или Telegram для связи",
+        )
+
     # Catalog orders must carry a shipping address.
     if not is_design:
         addr = (data.delivery_address or "").strip()

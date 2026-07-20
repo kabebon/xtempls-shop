@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>XTEMPLS Admin — Заказы</title>
+  <title>XTEMPLS Admin — Корзина</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
@@ -36,16 +36,15 @@
       </svg>
       Категории
     </a>
-    <a class="nav-item active" href="orders.html">
+    <a class="nav-item" href="orders.html">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
         <rect x="9" y="3" width="6" height="4" rx="1"/>
         <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
       </svg>
       Заказы
-      <span class="badge badge-red" id="newOrdersBadge" style="margin-left:auto;display:none;"></span>
     </a>
-    <a class="nav-item" href="trash.html">
+    <a class="nav-item active" href="trash.html">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <polyline points="3 6 5 6 21 6"/>
         <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
@@ -80,28 +79,14 @@
   <!-- Main -->
   <div class="main-content">
     <div class="topbar">
-      <div class="topbar-title">Заказы</div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <!-- Status filter -->
-        <select class="search-input" id="statusFilter" onchange="filterByStatus()" style="width:auto;padding-right:28px;">
-          <option value="">Все статусы</option>
-          <option value="new">Новые</option>
-          <option value="in_progress">В работе</option>
-          <option value="done">Выполнено</option>
-          <option value="cancelled">Отменено</option>
-        </select>
-        <!-- Broadcast button -->
-        <button class="btn btn-secondary" onclick="openBroadcastModal()">
-          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.7A2 2 0 012.18 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L7.09 7.91a16 16 0 006 6l.27-.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
-          </svg>
-          Рассылка
-        </button>
-      </div>
+      <div class="topbar-title">🗑 Корзина (удалённые заказы)</div>
     </div>
 
     <div class="page-content" style="padding:0">
       <div class="table-card" style="border-radius:0;border-left:none;border-right:none;border-bottom:none;">
+        <div style="padding:12px 20px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);">
+          Заказы здесь нельзя удалить навсегда. Можно только восстановить обратно в активные.
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -112,13 +97,12 @@
                 <th>Товары</th>
                 <th>Сумма</th>
                 <th>Статус</th>
-                <th>Оплата</th>
-                <th>Дата</th>
+                <th>Удалён</th>
                 <th>Действия</th>
               </tr>
             </thead>
             <tbody id="ordersTable">
-              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
             </tbody>
           </table>
         </div>
@@ -142,35 +126,6 @@
   </div>
 </div>
 
-<!-- Broadcast Modal -->
-<div class="modal-overlay" id="broadcastModal">
-  <div class="modal" style="max-width:500px;">
-    <div class="modal-header">
-      <div class="modal-title">📢 Рассылка пользователям</div>
-      <button class="modal-close" onclick="closeBroadcastModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="broadcastStats" style="margin-bottom:16px;padding:12px;background:var(--elevated);border-radius:var(--radius-sm);font-size:13px;color:var(--text-sec);">
-        Загрузка статистики...
-      </div>
-      <div class="form-group">
-        <label class="form-label">Текст сообщения (HTML разметка поддерживается)</label>
-        <textarea class="form-textarea" id="broadcastText" style="min-height:140px;"
-          placeholder="🛍 Новая коллекция уже в магазине!\n\nЗаходи и смотри новинки!"></textarea>
-      </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
-        Поддерживается: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;, &lt;a href=""&gt;ссылка&lt;/a&gt;
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeBroadcastModal()">Отмена</button>
-      <button class="btn btn-primary" id="sendBroadcastBtn" onclick="sendBroadcast()">
-        📨 Отправить рассылку
-      </button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
@@ -180,8 +135,6 @@
 
   let currentPage = 1;
   let totalPages = 1;
-  let currentStatus = '';
-  let currentOrderId = null;
 
   const STATUS_MAP = {
     'new':         ['badge-red',    'Новый'],
@@ -190,66 +143,44 @@
     'cancelled':   ['badge-gray',   'Отменён'],
   };
 
-  const PAYMENT_STATUS_MAP = {
-    'pending': ['badge-yellow', 'Не оплачен'],
-    'paid':    ['badge-green',  'Оплачен'],
-    'failed':  ['badge-red',    'Ошибка'],
-  };
-
   function statusBadge(status) {
     const [cls, label] = STATUS_MAP[status] || ['badge-gray', status];
     return `<span class="badge ${cls}">${label}</span>`;
   }
 
-  function paymentBadge(status) {
-    if (!status) return '';
-    const [cls, label] = PAYMENT_STATUS_MAP[status] || ['badge-gray', status];
-    return `<span class="badge ${cls}">${label}</span>`;
-  }
-
   async function loadOrders() {
     const params = new URLSearchParams({ page: currentPage, per_page: 20 });
-    if (currentStatus) params.append('status', currentStatus);
-
-    const res = await apiFetch(`/api/admin/orders?${params}`);
+    const res = await apiFetch(`/api/admin/orders/trash?${params}`);
     if (!res.ok) return;
     const data = await res.json();
     totalPages = data.pages;
 
     const tbody = document.getElementById('ordersTable');
     if (data.items.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">Нет заказов</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px">Корзина пуста</td></tr>';
     } else {
       tbody.innerHTML = data.items.map(o => {
         const total = o.items.reduce((s, i) => s + Number(i.product_price) * i.quantity, 0);
         const itemsStr = o.items.map(i => `${i.product_name}${i.size ? ' (' + i.size + ')' : ''} ×${i.quantity}`).join(', ');
-        const date = new Date(o.created_at).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-        // Объединяем контакты: новые поля (phone/tg), либо legacy customer_contact
+        const delDate = o.deleted_at
+          ? new Date(o.deleted_at).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+          : '—';
         const contactParts = [];
         if (o.customer_phone) contactParts.push(o.customer_phone);
         if (o.customer_telegram) contactParts.push('@' + String(o.customer_telegram).replace(/^@/, ''));
         const contactStr = contactParts.length ? contactParts.join(' · ') : (o.customer_contact || '—');
         return `
           <tr style="cursor:pointer;" onclick="viewOrder(${o.id})">
-            <td><strong>#${o.id}</strong>${o.admin_note ? ' <span title="Есть заметка">📝</span>' : ''}</td>
+            <td><strong>#${o.id}</strong></td>
             <td>${o.customer_name}</td>
             <td style="color:var(--accent)">${contactStr}</td>
             <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--text-sec)">${itemsStr}</td>
             <td><strong>${fmt(total)}</strong></td>
             <td>${statusBadge(o.status)}</td>
-            <td>${paymentBadge(o.payment_status)}</td>
-            <td style="white-space:nowrap;font-size:12px;color:var(--text-muted)">${date}</td>
+            <td style="white-space:nowrap;font-size:12px;color:var(--text-muted)">${delDate}</td>
             <td>
               <div style="display:flex;gap:4px;" onclick="event.stopPropagation()">
-                <select class="form-select" style="width:auto;font-size:11px;padding:4px 6px;"
-                  onchange="changeStatus(${o.id}, this.value)">
-                  <option value="">— статус —</option>
-                  <option value="new">Новый</option>
-                  <option value="in_progress">В работе</option>
-                  <option value="done">Выполнен</option>
-                  <option value="cancelled">Отменён</option>
-                </select>
-                <button class="btn btn-danger btn-icon" onclick="deleteOrd(${o.id})" title="Удалить">🗑</button>
+                <button class="btn btn-primary btn-icon" onclick="restoreOrd(${o.id})" title="Восстановить">↩</button>
               </div>
             </td>
           </tr>
@@ -281,57 +212,19 @@
     loadOrders();
   };
 
-  window.filterByStatus = function() {
-    currentStatus = document.getElementById('statusFilter').value;
-    currentPage = 1;
-    loadOrders();
-  };
-
-  window.changeStatus = async function(id, status) {
-    if (!status) return;
-    const res = await apiFetch(`/api/admin/orders/${id}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status })
-    });
-    if (res.ok) {
-      showToast('Статус обновлён', 'success');
-      loadOrders();
-    } else {
-      showToast('Ошибка', 'error');
-    }
-  };
-
-  window.saveAdminNote = async function(id) {
-    const note = document.getElementById('adminNoteInput')?.value.trim() || null;
-    const res = await apiFetch(`/api/admin/orders/${id}/note`, {
-      method: 'PUT',
-      body: JSON.stringify({ admin_note: note })
-    });
-    if (res.ok) {
-      showToast('Заметка сохранена', 'success');
-      loadOrders(); // обновим бейдж 📝 в списке
-    } else {
-      const err = await res.json().catch(() => ({}));
-      showToast(err.detail || 'Ошибка сохранения', 'error');
-    }
-  };
-
   window.viewOrder = async function(id) {
+    // Используем обычный get_order (работает и для удалённых, т.к. не фильтрует по is_deleted)
     const res = await apiFetch(`/api/admin/orders/${id}`);
     if (!res.ok) return;
     const o = await res.json();
 
     const total = o.items.reduce((s, i) => s + Number(i.product_price) * i.quantity, 0);
     const date = new Date(o.created_at).toLocaleString('ru-RU');
-
-    // Объединяем контакты для отображения
+    const delDate = o.deleted_at ? new Date(o.deleted_at).toLocaleString('ru-RU') : '—';
     const contactParts = [];
     if (o.customer_phone) contactParts.push('📞 ' + o.customer_phone);
     if (o.customer_telegram) contactParts.push('💬 @' + String(o.customer_telegram).replace(/^@/, ''));
     const contactStr = contactParts.length ? contactParts.join('<br>') : (o.customer_contact || '—');
-
-    // Сохраняем id для сохранения заметок
-    currentOrderId = o.id;
 
     document.getElementById('orderModalTitle').textContent = `Заказ #${o.id}`;
     document.getElementById('orderModalBody').innerHTML = `
@@ -349,12 +242,12 @@
           <div>${statusBadge(o.status)}</div>
         </div>
         <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Оплата</div>
-          <div>${paymentBadge(o.payment_status)}</div>
-        </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Дата</div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Дата создания</div>
           <div style="font-size:13px;color:var(--text-sec);">${date}</div>
+        </div>
+        <div style="grid-column:1/-1;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Дата удаления</div>
+          <div style="font-size:13px;color:var(--danger);">${delDate}</div>
         </div>
         ${o.comment ? `
         <div style="grid-column:1/-1;">
@@ -365,6 +258,11 @@
         <div style="grid-column:1/-1;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Адрес доставки</div>
           <div style="color:var(--text-sec);font-size:13px;">${o.delivery_address}</div>
+        </div>` : ''}
+        ${o.admin_note ? `
+        <div style="grid-column:1/-1;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">📝 Заметка менеджера</div>
+          <div style="color:var(--text-sec);font-size:13px;">${(o.admin_note || '').replace(/</g, '&lt;')}</div>
         </div>` : ''}
       </div>
       <div style="border-top:1px solid var(--border);padding-top:16px;">
@@ -379,15 +277,6 @@
           Итого: <span style="color:var(--accent);margin-left:8px;">${fmt(total)}</span>
         </div>
       </div>
-      <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📝 Заметки менеджера</div>
-        <textarea id="adminNoteInput" class="form-textarea" rows="3"
-          placeholder="Внутренние заметки по заказу (видны только в админке)..."
-          style="width:100%;font-size:13px;">${(o.admin_note || '').replace(/</g, '&lt;')}</textarea>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-          <button class="btn btn-primary" onclick="saveAdminNote(${o.id})">💾 Сохранить заметку</button>
-        </div>
-      </div>
     `;
     document.getElementById('orderModal').classList.add('open');
   };
@@ -396,103 +285,20 @@
     document.getElementById('orderModal').classList.remove('open');
   };
 
-  window.deleteOrd = function(id) {
-    if (!confirm(`Удалить заказ #${id}?`)) return;
-    apiFetch(`/api/admin/orders/${id}`, { method: 'DELETE' }).then(res => {
-      if (res.ok || res.status === 204) {
-        showToast('Заказ удалён', 'success');
-        loadOrders();
-      }
-    });
+  window.restoreOrd = async function(id) {
+    if (!confirm(`Восстановить заказ #${id} из корзины?`)) return;
+    const res = await apiFetch(`/api/admin/orders/${id}/restore`, { method: 'POST' });
+    if (res.ok) {
+      showToast('Заказ восстановлен', 'success');
+      loadOrders();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка', 'error');
+    }
   };
 
-  // Close on overlay click (drag-safe).
   enableOverlayClose(document.getElementById('orderModal'), closeOrderModal);
 
-  // ── Broadcast ──────────────────────────────────────────────────────────────
-
-  window.openBroadcastModal = async function() {
-    document.getElementById('broadcastModal').classList.add('open');
-    const res = await apiFetch('/api/admin/orders/stats');
-    if (res.ok) {
-      const data = await res.json();
-      document.getElementById('broadcastStats').innerHTML =
-        `👥 Пользователей бота: <strong>${data.tg_users}</strong> &nbsp;|&nbsp; Заказов всего: <strong>${data.total}</strong>`;
-    }
-  };
-
-  window.closeBroadcastModal = function() {
-    document.getElementById('broadcastModal').classList.remove('open');
-  };
-
-  window.sendBroadcast = async function() {
-    const text = document.getElementById('broadcastText').value.trim();
-    if (!text) { showToast('Введите текст', 'error'); return; }
-
-    if (!confirm(`Отправить сообщение всем пользователям бота?`)) return;
-
-    const btn = document.getElementById('sendBroadcastBtn');
-    btn.disabled = true;
-    btn.textContent = 'Постановка в очередь...';
-
-    const res = await apiFetch('/api/admin/broadcast', {
-      method: 'POST',
-      body: JSON.stringify({ text })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      btn.disabled = false;
-      btn.textContent = '📨 Отправить рассылку';
-      showToast(err.detail || 'Ошибка рассылки', 'error');
-      return;
-    }
-
-    const data = await res.json();
-    btn.textContent = `Отправляется: 0/${data.queued}`;
-    document.getElementById('broadcastText').value = '';
-
-    // Poll progress until done
-    const statsEl = document.getElementById('broadcastStats');
-    const poll = async () => {
-      try {
-        const sRes = await apiFetch('/api/admin/broadcast/status');
-        if (!sRes.ok) return;
-        const s = await sRes.json();
-        if (s.state === 'running' && statsEl) {
-          statsEl.innerHTML = `⏳ Отправка... <strong>${s.sent}</strong> отправлено, <strong>${s.failed}</strong> ошибок из <strong>${s.total}</strong>`;
-        }
-        if (s.state === 'running') {
-          setTimeout(poll, 1500);
-        } else if (s.state === 'done') {
-          btn.disabled = false;
-          btn.textContent = '📨 Отправить рассылку';
-          showToast(`Готово: отправлено ${s.sent}, ошибок ${s.failed}`, 'success');
-          if (statsEl) {
-            statsEl.innerHTML = `✅ Отправлено: <strong>${s.sent}</strong>, ошибок: <strong>${s.failed}</strong> из <strong>${s.total}</strong>`;
-          }
-        }
-      } catch (e) { setTimeout(poll, 2000); }
-    };
-    setTimeout(poll, 1500);
-  };
-
-  enableOverlayClose(document.getElementById('broadcastModal'), closeBroadcastModal);
-
-  // Load new orders badge
-  async function loadBadge() {
-    const res = await apiFetch('/api/admin/orders/stats');
-    if (res.ok) {
-      const data = await res.json();
-      const badge = document.getElementById('newOrdersBadge');
-      if (data.new > 0) {
-        badge.textContent = data.new;
-        badge.style.display = 'inline-flex';
-      }
-    }
-  }
-
-  loadBadge();
   loadOrders();
 </script>
 </body>

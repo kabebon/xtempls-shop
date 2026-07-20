@@ -124,9 +124,16 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     tg_user_chat_id = Column(BigInteger, ForeignKey("tg_users.chat_id", ondelete="SET NULL"), nullable=True)
     customer_name = Column(String(150), nullable=False)
-    customer_contact = Column(String(200), nullable=False)  # phone or @username
+    customer_contact = Column(String(200), nullable=True)   # legacy: phone or @username (старые заказы)
+    customer_phone = Column(String(30), nullable=True)      # новый формат: телефон
+    customer_telegram = Column(String(100), nullable=True)  # новый формат: @username
     delivery_address = Column(Text, nullable=True)          # shipping address
     comment = Column(Text, nullable=True)
+    admin_note = Column(Text, nullable=True)                # внутренние заметки менеджера
+    # ── Soft-delete (корзина удалённых заказов) ───────────────────────────────
+    is_deleted = Column(Boolean, default=False, nullable=False, server_default="0", index=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+    # ─────────────────────────────────────────────────────────────────────────
     status = Column(SAEnum(OrderStatus), default=OrderStatus.new, nullable=False)
     order_type = Column(SAEnum(OrderType), default=OrderType.catalog, nullable=False)
     # ── ЮМани оплата ─────────────────────────────────────────────────────────
