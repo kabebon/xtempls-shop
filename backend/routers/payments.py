@@ -55,7 +55,7 @@ def build_payment_url(order_id: int, amount: Decimal, label: str) -> str:
 
 # ─── Проверка SHA-1 подписи ЮМани ────────────────────────────────────────────
 
-def verify_yoomoney_signature(form_data: dict, notification_secret: str) -> bool:
+def verify_yoomoney_signature(form_data: dict, notification_secret: str, raw_body: bytes = b"") -> bool:
     """Проверяем подлинность уведомления от ЮМани.
     Поддерживает как старый sha1_hash (устарел с мая 2026), 
     так и новый sign (HMAC-SHA256).
@@ -91,9 +91,30 @@ def verify_yoomoney_signature(form_data: dict, notification_secret: str) -> bool
         if hmac.compare_digest(computed_sign, received_sign):
             return True
             
+        # 1.1 Фолбэк: возможно подпись считается от сырого тела запроса (без sign=...)
+        if raw_body:
+            try:
+                # Пытаемся вырезать sign из сырого тела
+                raw_str = raw_body.decode('utf-8')
+                import re
+                # Удаляем параметр sign (в начале, в середине, или в конце)
+                raw_str_no_sign = re.sub(r'(&?sign=[^&]*)', '', raw_str).lstrip('&')
+                
+                raw_sign = hmac.new(
+                    notification_secret.encode('utf-8'),
+                    raw_str_no_sign.encode('utf-8'),
+                    hashlib.sha256
+                ).hexdigest()
+                
+                if hmac.compare_digest(raw_sign, received_sign):
+                    logger.info("ЮМани: Подпись совпала по RAW BODY (без сортировки)!")
+                    return True
+            except Exception as e:
+                logger.error(f"Ошибка при проверке raw_body: {e}")
+
         logger.warning(
-            "ЮМани Sign Mismatch!\nСтрока: %s\nСекрет(len): %d\nОжидаемый: %s\nПрисланный: %s",
-            data_string, len(notification_secret), computed_sign, received_sign
+            "ЮМани Sign Mismatch!\nСтрока: %s\nСекрет(len): %d\nОжидаемый: %s\nОжидаемый (raw): %s\nПрисланный: %s",
+            data_string, len(notification_secret), computed_sign, locals().get('raw_sign', 'none'), received_sign
         )
         return False
 
@@ -137,40 +158,33 @@ def verify_yoomoney_signature(form_data: dict, notification_secret: str) -> bool
 @router.post("/notify")
 async def yoomoney_notify(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Принимаем HTTP-уведомление от ЮМани о входящем переводе.
-
-    ЮМани шлёт POST с Content-Type: application/x-www-form-urlencoded.
-    Поля: notification_type, operation_id, amount, currency, datetime,
-          sender, codepro, label, sha1_hash.
+    """
+    Вебхук ЮМани: сюда приходят уведомления об оплате.
     """
     form = await request.form()
+    raw_body = await request.body()
+    logger.info(f"Raw YooMoney Form Data: {dict(form)}")
     
-    # ЛОГИРУЕМ ВСЕ ПОЛЯ ДЛЯ ОТЛАДКИ
-    logger.info("Raw YooMoney Form Data: %s", dict(form))
-
-    notification_type = form.get("notification_type", "")
-    operation_id      = form.get("operation_id", "")
-    amount            = form.get("amount", "")
-    currency          = form.get("currency", "643")
-    datetime_str      = form.get("datetime", "")
-    sender            = form.get("sender", "")
-    codepro           = form.get("codepro", "false")
-    label             = form.get("label", "")
-    sha1_hash         = form.get("sha1_hash", "")
-
-    logger.info(
-        "ЮМани уведомление: type=%s op=%s amount=%s label=%s",
-        notification_type, operation_id, amount, label
-    )
-
-    # 1. Проверяем подпись
+    # Получаем параметры
+    notification_type = form.get("notification_type")
+    operation_id      = form.get("operation_id")
+    amount            = form.get("amount")
+    currency          = form.get("currency")
+    datetime_str      = form.get("datetime")
+    sender            = form.get("sender")
+    codepro           = form.get("codepro")
+    label             = form.get("label")
+    sha1_hash         = form.get("sha1_hash")
+    
+    logger.info(f"ЮМани уведомление: type={notification_type} op={operation_id} amount={amount} label={label}")
+    
     if not settings.yoomoney_secret:
         logger.error("YOOMONEY_SECRET не задан — уведомления не проверяются!")
         return {"status": "ok"}  # возвращаем 200 чтобы ЮМани не ретраил
 
-    is_valid = verify_yoomoney_signature(dict(form), settings.yoomoney_secret)
+    is_valid = verify_yoomoney_signature(dict(form), settings.yoomoney_secret, raw_body)
 
     if not is_valid:
         # Возвращаем 200 (иначе ЮМани будет ретраить и спамить лог)
