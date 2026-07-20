@@ -163,8 +163,9 @@ async def yoomoney_notify(
     """
     Вебхук ЮМани: сюда приходят уведомления об оплате.
     """
-    form = await request.form()
+    # В FastAPI ОБЯЗАТЕЛЬНО сначала читать body(), иначе form() вызовет Stream consumed
     raw_body = await request.body()
+    form = await request.form()
     logger.info(f"Raw YooMoney Form Data: {dict(form)}")
     
     # Получаем параметры
