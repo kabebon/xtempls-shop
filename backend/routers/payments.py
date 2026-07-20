@@ -74,17 +74,26 @@ def verify_yoomoney_signature(
           datetime & sender & codepro & notification_secret & label )
     """
     check_str = "&".join([
-        notification_type,
-        operation_id,
-        amount,
-        currency,
-        datetime_str,
-        sender,
-        codepro,
-        notification_secret,
-        label,
+        str(notification_type),
+        str(operation_id),
+        str(amount),
+        str(currency),
+        str(datetime_str),
+        str(sender),
+        str(codepro),
+        str(notification_secret),
+        str(label),
     ])
     expected = hashlib.sha1(check_str.encode("utf-8")).hexdigest()
+    
+    # Для отладки: выводим строку, из которой считали хеш (секрет скрываем)
+    debug_str = check_str.replace(notification_secret, "***SECRET***")
+    if expected != sha1_hash:
+        logger.warning(
+            "ЮМани Hash Mismatch!\nСтрока: %s\nОжидаемый: %s\nПрисланный: %s",
+            debug_str, expected, sha1_hash
+        )
+    
     return expected == sha1_hash
 
 
@@ -131,13 +140,12 @@ async def yoomoney_notify(
         datetime_str=datetime_str,
         sender=sender,
         codepro=codepro,
-        notification_secret=settings.yoomoney_secret,
+        notification_secret=settings.yoomoney_secret.strip(),  # убираем случайные пробелы
         label=label,
         sha1_hash=sha1_hash,
     )
 
     if not is_valid:
-        logger.warning("ЮМани: неверная подпись SHA-1 для label=%s", label)
         # Возвращаем 200 (иначе ЮМани будет ретраить и спамить лог)
         return {"status": "invalid_signature"}
 
