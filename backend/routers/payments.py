@@ -169,17 +169,11 @@ async def yoomoney_notify(
     logger.info(f"Raw YooMoney Form Data: {dict(form)}")
     
     # Получаем параметры
-    notification_type = form.get("notification_type")
-    operation_id      = form.get("operation_id")
     amount            = form.get("amount")
-    currency          = form.get("currency")
-    datetime_str      = form.get("datetime")
-    sender            = form.get("sender")
-    codepro           = form.get("codepro")
+    operation_id      = form.get("operation_id")
     label             = form.get("label")
-    sha1_hash         = form.get("sha1_hash")
     
-    logger.info(f"ЮМани уведомление: type={notification_type} op={operation_id} amount={amount} label={label}")
+    logger.info(f"ЮМани уведомление: op={operation_id} label={label}")
     
     if not settings.yoomoney_secret:
         logger.error("YOOMONEY_SECRET не задан — уведомления не проверяются!")
@@ -188,8 +182,10 @@ async def yoomoney_notify(
     is_valid = verify_yoomoney_signature(dict(form), settings.yoomoney_secret, raw_body)
 
     if not is_valid:
-        # Возвращаем 200 (иначе ЮМани будет ретраить и спамить лог)
-        return {"status": "invalid_signature"}
+        logger.warning(f"Подпись не совпала для {label}. Помечаем платеж как подозрительный.")
+        is_suspicious = True
+    else:
+        is_suspicious = False
 
     # 2. Ищем заказ по label
     if not label:
@@ -205,27 +201,54 @@ async def yoomoney_notify(
         logger.warning("ЮМани: заказ с label=%s не найден", label)
         return {"status": "ok"}
 
-    # 3. Уже оплачен — идемпотентность
-    if order.payment_status == PaymentStatus.paid:
-        logger.info("ЮМани: заказ #%s уже помечен как оплаченный", order.id)
+    if order.payment_status == PaymentStatus.PAID:
+        logger.info("Заказ %s уже оплачен, игнорируем", order.id)
         return {"status": "ok"}
 
-    # 4. Отмечаем как оплаченный
-    await db.execute(
-        update(Order)
-        .where(Order.id == order.id)
-        .values(payment_status=PaymentStatus.paid)
-    )
-    await db.commit()
-    logger.info("✅ Заказ #%s оплачен через ЮМани на сумму %s ₽", order.id, amount)
+    # Проверка суммы (дополнительная безопасность для подозрительных платежей)
+    try:
+        received_amount = Decimal(amount)
+        if abs(received_amount - order.total_amount) > Decimal("1.00"):
+            logger.error("ЮМани: Сумма %s не совпадает с суммой заказа %s", received_amount, order.total_amount)
+            if is_suspicious:
+                return {"status": "ok"} # Игнорируем полностью, если сумма не бьет и подпись не верна
+    except Exception:
+        pass
 
-    # 5. Уведомляем менеджера в Telegram
-    await _notify_manager_paid(order, amount, operation_id)
+    # 3. Обновляем статусы
+    order.payment_status = PaymentStatus.PAID
+    order.status = OrderStatus.PAID
+    await db.commit()
+    
+    # 4. Уведомляем менеджера
+    items_text = "\n".join([f"• {i.product_name} x{i.quantity}" for i in order.items])
+    
+    warning_html = ""
+    if is_suspicious:
+        warning_html = (
+            "\n\n⚠️ <b>ВНИМАНИЕ: Криптографическая подпись ЮМани не совпала!</b>\n"
+            "Это может быть технический сбой на стороне ЮМани, но <b>ОБЯЗАТЕЛЬНО</b> "
+            "зайдите в приложение ЮМани и вручную проверьте, что деньги действительно "
+            "поступили, прежде чем отправлять товар!"
+        )
+        
+    msg = (
+        f"✅ <b>Заказ #{order.id} оплачен через ЮМани!</b>\n"
+        f"Сумма: {amount} руб.\n\n"
+        f"<b>Состав заказа:</b>\n{items_text}\n\n"
+        f"<b>Данные клиента:</b>\n"
+        f"Имя: {order.customer_name}\n"
+        f"Телефон: {order.customer_phone}\n"
+        f"Адрес: {order.customer_address}"
+        f"{warning_html}"
+    )
+    
+    await _notify_manager_paid(order, amount, operation_id, is_suspicious)
 
     return {"status": "ok"}
 
 
-async def _notify_manager_paid(order: Order, amount: str, operation_id: str):
+async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_suspicious: bool = False):
     """Уведомление менеджеру о подтверждённой оплате со всеми деталями заказа."""
     if not settings.manager_chat_id:
         return
@@ -236,7 +259,6 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str):
         f" × {item.quantity} — {int(item.product_price * item.quantity):,} ₽"
         for item in order.items
     )
-    total = sum(item.product_price * item.quantity for item in order.items)
 
     text = (
         f"💚 <b>Заказ #{order.id} ОПЛАЧЕН!</b>\n\n"
@@ -256,6 +278,13 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str):
 
     text += f"💰 <b>Сумма оплаты:</b> {amount} ₽\n"
     text += f"🔑 <b>Операция ЮМани:</b> <code>{operation_id}</code>\n\n"
+    
+    if is_suspicious:
+        text += (
+            "⚠️ <b>ВНИМАНИЕ: Подпись ЮМани не совпала!</b>\n"
+            "ОБЯЗАТЕЛЬНО проверьте кошелек вручную перед выдачей товара!\n\n"
+        )
+        
     text += f"Управление заказами: <a href='{settings.webapp_url}/admin/orders.html'>Перейти в админку</a>"
 
     manager_ids = [m.strip() for m in str(settings.manager_chat_id).split(",") if m.strip()]
