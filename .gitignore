@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -14,6 +16,31 @@ ssl/
 certbot/
 node_modules/
 
+# Секреты / ключи — никогда не коммитить
+*.pem
+*.key
+*.crt
+*.p12
+id_rsa
+id_rsa.pub
+*.ppk
+secrets/
+credentials.json
+
+# Локальные БД-дампы и бэкапы
+*.bak
+*.orig
+*.swp
+*.tmp
+*.dump
+*.sql.gz
+
+# Локальные одноразовые скрипты (хелперы отладки/экспериментов)
+check_db.py
+remove_bevels.py
+scratch_*.py
+test_*.local.py
+
 # Local dev artifacts (extracted source templates & dev helper scripts with hard-coded paths)
 xtempls-static/
 frontend/extract.js
@@ -23,3 +50,5 @@ frontend/app_snippet.txt
 # Editor / IDE
 .vscode/
 .idea/
+*.code-workspace
+.devcontainer/
