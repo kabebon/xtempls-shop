@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
-from models import StockStatus, OrderType
+from models import StockStatus, OrderType, PaymentStatus
 
 
 # ─── Category ────────────────────────────────────────────────────────────────
@@ -243,6 +243,11 @@ class OrderOut(BaseModel):
     order_type: str
     tg_user_chat_id: Optional[int] = None
     items: List[OrderItemOut] = []
+    # ЮМани поля
+    payment_status: str = "pending"
+    payment_label: Optional[str] = None
+    amount: Optional[Decimal] = None
+    payment_url: Optional[str] = None  # генерируется на лету, не хранится в БД
     created_at: datetime
     updated_at: datetime
 

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     manager_chat_id: str = ""         # Может содержать несколько ID через запятую
     bot_secret: str = "bot-internal-secret"  # Секрет для внутренних вызовов bot→backend
+    # ЮМани QuickPay
+    yoomoney_wallet: str = ""         # номер кошелька (41001...)
+    yoomoney_secret: str = ""         # секрет HTTP-уведомлений
 
     class Config:
         env_file = ".env"

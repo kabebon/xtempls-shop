@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Оплата прошла успешно - XTEMPLS</title>
+  <!-- Телеграм скрипт (необходим для Mini Apps) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .success-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: var(--space-xl);
+      text-align: center;
+      animation: fadeIn 0.5s ease;
+    }
+    .success-icon-big {
+      font-size: 64px;
+      margin-bottom: var(--space-m);
+      animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .success-heading {
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--space-s);
+    }
+    .success-subtitle {
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-l);
+      max-width: 300px;
+      line-height: 1.5;
+    }
+    .btn-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-s);
+      width: 100%;
+      max-width: 300px;
+    }
+    @keyframes scaleIn {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Заставка загрузки -->
+  <div id="loader" class="loader">
+    <div class="loader-spinner"></div>
+  </div>
+
+  <div class="success-container">
+    <div class="success-icon-big">💚</div>
+    <div class="success-heading">Оплата получена!</div>
+    <div class="success-subtitle" id="paymentDetails">
+      Спасибо за ваш заказ.<br>Мы уже начали его собирать.
+    </div>
+    
+    <div class="btn-container">
+      <button class="primary-btn" onclick="window.location.href='index.html'">На главную</button>
+      <button class="cart-btn" onclick="window.location.href='catalog.html'" style="background: var(--bg-hover); color: var(--text-primary);">Вернуться в каталог</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Прячем лоадер сразу
+    window.addEventListener('DOMContentLoaded', () => {
+      const loader = document.getElementById('loader');
+      if (loader) loader.style.display = 'none';
+
+      // Можно вытащить order_id из URL и проверить статус
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderId = urlParams.get('order_id');
+      if (orderId) {
+        document.getElementById('paymentDetails').innerHTML = `Заказ #${orderId} оплачен.<br>Менеджер свяжется с вами в ближайшее время.`;
+      }
+    });
+  </script>
+</body>
+</html>

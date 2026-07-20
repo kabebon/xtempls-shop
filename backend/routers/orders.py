@@ -1,15 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
 from typing import Optional
 import json
 import logging
+from decimal import Decimal
 
 from database import get_db, settings
 import crud
-from models import OrderType
+from models import OrderType, Order
 from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest, PromoValidateResponse
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
+from routers.payments import build_payment_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -87,13 +90,36 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
         # Product(s) not found / inactive
         raise HTTPException(status_code=400, detail=str(e))
 
+    # ── ЮМани: назначаем label и считаем сумму ───────────────────────────────
+    payment_url: Optional[str] = None
+    is_catalog = (data.order_type == OrderType.catalog)
+    if is_catalog and settings.yoomoney_wallet:
+        # Уникальный label = "order_{id}" — вернётся в webhook
+        label = f"order_{order.id}"
+        total_amount = sum(
+            item.product_price * item.quantity for item in order.items
+        )
+        # Сохраняем label и amount в БД
+        await db.execute(
+            update(Order)
+            .where(Order.id == order.id)
+            .values(payment_label=label, amount=total_amount)
+        )
+        await db.commit()
+        await db.refresh(order)
+        payment_url = build_payment_url(order.id, total_amount, label)
+    # ─────────────────────────────────────────────────────────────────────────
+
     # Notify manager asynchronously (don't fail request if notification fails)
     try:
         await notify_manager_new_order(order)
     except Exception:
         logger.exception("Manager notification failed for order #%s", order.id)
 
-    return order
+    # Собираем ответ вручную чтобы добавить payment_url (не хранится в модели)
+    out = OrderOut.model_validate(order)
+    out.payment_url = payment_url
+    return out
 
 
 # ─── Public: Validate Promo Code ──────────────────────────────────────────────

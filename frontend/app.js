@@ -373,9 +373,10 @@ window.submitOrder = async function(e) {
       body: JSON.stringify(body)
     });
 
+    const orderData = await res.json();
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      showToast(err.detail || 'Ошибка отправки заказа');
+      showToast(orderData.detail || 'Ошибка отправки заказа');
       return;
     }
 
@@ -385,9 +386,7 @@ window.submitOrder = async function(e) {
     window._appliedPromo = null;
     updateCartBadge();
 
-    // Replace the checkout drawer body with a success screen that has
-    // explicit "Close" and "Go home" buttons (instead of auto-dropping the
-    // user back into the catalog with no feedback).
+    // Replace the checkout drawer body with a success screen
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
     const checkoutFooter = document.getElementById('checkoutModal')?.querySelector('.cart-footer');
     if (checkoutBody) {
@@ -401,7 +400,13 @@ window.submitOrder = async function(e) {
             <strong>${contact}</strong><br/><br/>
             Менеджер скоро ответит вам.
           </div>
-          <div class="success-actions">
+          ${orderData.payment_url ? `
+          <div style="margin-top: 24px; text-align: center;">
+            <a href="${orderData.payment_url}" class="primary-btn" style="text-decoration: none; display: inline-block;">Оплатить онлайн (ЮМани)</a>
+            <div style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);">Или вы можете оплатить позже</div>
+          </div>
+          ` : ''}
+          <div class="success-actions" style="margin-top: 24px;">
             <button class="btn-success-close" onclick="closeSuccessAndGo('close')">Закрыть</button>
             <button class="btn-success-home" onclick="closeSuccessAndGo('home')">На главную</button>
           </div>

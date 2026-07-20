@@ -107,6 +107,12 @@ class OrderStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class PaymentStatus(str, enum.Enum):
+    pending = "pending"    # ждём оплаты
+    paid = "paid"          # ЮМани подтвердил
+    failed = "failed"      # отменён / не оплачен
+
+
 class OrderType(str, enum.Enum):
     catalog = "catalog"
     design = "design"
@@ -123,6 +129,11 @@ class Order(Base):
     comment = Column(Text, nullable=True)
     status = Column(SAEnum(OrderStatus), default=OrderStatus.new, nullable=False)
     order_type = Column(SAEnum(OrderType), default=OrderType.catalog, nullable=False)
+    # ── ЮМани оплата ─────────────────────────────────────────────────────────
+    payment_status = Column(SAEnum(PaymentStatus), default=PaymentStatus.pending, nullable=False)
+    payment_label = Column(String(100), nullable=True, unique=True, index=True)  # наш ID в ЮМани
+    amount = Column(Numeric(10, 2), nullable=True)          # итоговая сумма заказа
+    # ─────────────────────────────────────────────────────────────────────────
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
