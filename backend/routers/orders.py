@@ -30,7 +30,7 @@ async def register_tg_user(
 ):
     """Internal endpoint: bot registers a user when they press /start."""
     if x_bot_secret != settings.bot_secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
     user = await crud.upsert_tg_user(
         db,
         chat_id=data.chat_id,
@@ -48,7 +48,7 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
     # A design request may legitimately have no items; a catalog order must have ≥1.
     is_design = data.order_type == OrderType.design
     if not data.items and not is_design:
-        raise HTTPException(status_code=400, detail="Order must have at least one item")
+        raise HTTPException(status_code=400, detail="В заказе должен быть хотя бы один товар")
 
     # Legal requirement: the customer must accept the offer & privacy policy.
     if not data.consent_accepted:

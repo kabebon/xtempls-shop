@@ -33,7 +33,7 @@ async def list_products(
 async def get_product_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     product = await crud.get_product_by_slug(db, slug)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     return product
 
 
@@ -41,5 +41,5 @@ async def get_product_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     product = await crud.get_product(db, product_id)
     if not product or not product.is_active:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     return product

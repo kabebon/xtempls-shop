@@ -342,7 +342,22 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
 
     missing = [pid for pid in product_ids if pid not in products_by_id]
     if missing:
-        raise ValueError(f"Products not found or inactive: {missing}")
+        raise ValueError(f"Указанные товары не найдены или неактивны: {missing}")
+
+    # Гарантируем что Telegram-пользователь существует в tg_users, иначе FK
+    # orders_tg_user_chat_id_fkey падает (если юзер открыл миниапп напрямую,
+    # не запустив /start и не зарегистрировавшись через бота).
+    if data.tg_user_chat_id:
+        existing = await db.execute(
+            select(TgUser).where(TgUser.chat_id == data.tg_user_chat_id)
+        )
+        if not existing.scalar_one_or_none():
+            db.add(TgUser(chat_id=data.tg_user_chat_id))
+            try:
+                await db.flush()
+            except IntegrityError:
+                # Кто-то другой только что добавил — ничего страшного.
+                await db.rollback()
 
     order = Order(
         tg_user_chat_id=data.tg_user_chat_id,

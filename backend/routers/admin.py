@@ -40,10 +40,10 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not admin or not verify_password(data.password, admin.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid login or password"
+            detail="Неверный логин или пароль"
         )
     if not admin.is_active:
-        raise HTTPException(status_code=403, detail="Account disabled")
+        raise HTTPException(status_code=403, detail="Аккаунт отключён")
     await crud.update_last_login(db, admin.id)
     token = create_access_token({"sub": admin.login})
     return {"access_token": token}
@@ -101,7 +101,7 @@ async def admin_update_category(
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Категория с таким name/slug уже существует")
     if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status_code=404, detail="Категория не найдена")
     return cat
 
 
@@ -113,7 +113,7 @@ async def admin_delete_category(
 ):
     cat = await crud.get_category(db, category_id)
     if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status_code=404, detail="Категория не найдена")
     await crud.delete_category(db, category_id)
 
 
@@ -154,7 +154,7 @@ async def admin_get_product(
 ):
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     return product
 
 
@@ -167,7 +167,7 @@ async def admin_update_product(
 ):
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     try:
         return await crud.update_product(db, product_id, data)
     except IntegrityError:
@@ -182,7 +182,7 @@ async def admin_delete_product(
 ):
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     # Delete image files
     for img in product.images:
         img_path = UPLOAD_DIR / img.url.split("/uploads/")[-1]
@@ -200,7 +200,7 @@ async def admin_update_stock(
 ):
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     return await crud.update_stock(db, product_id, data.stock_status)
 
 
@@ -216,7 +216,7 @@ async def admin_upload_image(
 ):
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
 
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -224,7 +224,7 @@ async def admin_upload_image(
 
     contents = await file.read()
     if len(contents) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 20MB)")
+        raise HTTPException(status_code=400, detail="Файл слишком большой (макс. 20МБ)")
 
     # Process & resize image
     img = Image.open(io.BytesIO(contents))
@@ -253,7 +253,7 @@ async def admin_delete_image(
     result = await db.execute(select(ProductImage).where(ProductImage.id == image_id))
     img = result.scalar_one_or_none()
     if not img:
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(status_code=404, detail="Изображение не найдено")
     # Delete file
     img_path = UPLOAD_DIR / img.url.split("/uploads/")[-1]
     if img_path.exists():
@@ -282,7 +282,7 @@ async def admin_reorder_images(
     """Update sort_order for product images (drag-and-drop reordering)."""
     product = await crud.get_product(db, product_id)
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Товар не найден")
     await crud.reorder_product_images(db, product_id, [{"id": i.id, "sort_order": i.sort_order} for i in data.images])
     return {"ok": True}
 
@@ -318,7 +318,7 @@ async def admin_get_order(
 ):
     order = await crud.get_order(db, order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Заказ не найден")
     return order
 
 
@@ -331,7 +331,7 @@ async def admin_update_order_status(
 ):
     order = await crud.update_order_status(db, order_id, data.status)
     if not order:
-        raise HTTPException(status_code=400, detail="Invalid status or order not found")
+        raise HTTPException(status_code=400, detail="Неверный статус или заказ не найден")
     return order
 
 
@@ -345,7 +345,7 @@ async def admin_update_order_note(
     """Сохраняет/обновляет внутренние заметки менеджера по заказу."""
     order = await crud.update_order_note(db, order_id, data.admin_note)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Заказ не найден")
     return order
 
 
@@ -358,7 +358,7 @@ async def admin_delete_order(
     """Soft-delete: заказ попадает в корзину, оттуда его можно восстановить."""
     order = await crud.get_order(db, order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=404, detail="Заказ не найден")
     await crud.delete_order(db, order_id)
 
 
@@ -382,7 +382,7 @@ async def admin_restore_order(
     """Восстанавливает заказ из корзины."""
     order = await crud.restore_order(db, order_id)
     if not order:
-        raise HTTPException(status_code=404, detail="Order not found in trash")
+        raise HTTPException(status_code=404, detail="Заказ не найден в корзине")
     return order
 
 
@@ -403,7 +403,7 @@ async def admin_broadcast(
     if not chat_ids:
         return {"queued": 0, "message": "No users found"}
     if get_broadcast_status().get("state") == "running":
-        raise HTTPException(status_code=409, detail="A broadcast is already running")
+        raise HTTPException(status_code=409, detail="Рассылка уже запущена")
     asyncio.create_task(tg_broadcast(chat_ids, data.text))
     return {"queued": len(chat_ids)}
 
@@ -458,7 +458,7 @@ async def admin_toggle_promo_code(
 ):
     promo = await crud.toggle_promo_code(db, promo_id)
     if not promo:
-        raise HTTPException(status_code=404, detail="Promo code not found")
+        raise HTTPException(status_code=404, detail="Промокод не найден")
     return promo
 
 
@@ -493,7 +493,7 @@ async def admin_update_user(
 ):
     target = await crud.get_admin(db, user_id)
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     # Cannot deactivate or delete yourself.
     if user_id == current_admin.id and data.is_active is False:
@@ -509,7 +509,7 @@ async def admin_update_user(
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Логин уже занят")
     if not updated:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return updated
 
 
@@ -523,5 +523,5 @@ async def admin_delete_user(
         raise HTTPException(status_code=400, detail="Нельзя удалить себя")
     target = await crud.get_admin(db, user_id)
     if not target:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     await crud.delete_admin(db, user_id)

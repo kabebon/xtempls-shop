@@ -32,5 +32,5 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 async def get_category(category_id: int, db: AsyncSession = Depends(get_db)):
     cat = await crud.get_category(db, category_id)
     if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status_code=404, detail="Категория не найдена")
     return cat
