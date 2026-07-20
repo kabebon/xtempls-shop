@@ -55,24 +55,59 @@ def build_payment_url(order_id: int, amount: Decimal, label: str) -> str:
 
 # ─── Проверка SHA-1 подписи ЮМани ────────────────────────────────────────────
 
-def verify_yoomoney_signature(
-    notification_type: str,
-    operation_id: str,
-    amount: str,
-    currency: str,
-    datetime_str: str,
-    sender: str,
-    codepro: str,
-    notification_secret: str,
-    label: str,
-    sha1_hash: str,
-) -> bool:
+def verify_yoomoney_signature(form_data: dict, notification_secret: str) -> bool:
     """Проверяем подлинность уведомления от ЮМани.
-
-    Алгоритм из документации:
-    SHA1( notification_type & operation_id & amount & currency &
-          datetime & sender & codepro & notification_secret & label )
+    Поддерживает как старый sha1_hash (устарел с мая 2026), 
+    так и новый sign (HMAC-SHA256).
     """
+    notification_secret = notification_secret.strip()
+    
+    # 1. Пробуем новый формат (sign)
+    received_sign = form_data.get("sign", "")
+    if received_sign:
+        import hmac
+        import hashlib
+        import urllib.parse
+        
+        # Берем все параметры кроме sign
+        data_to_sign = {k: v for k, v in form_data.items() if k != "sign"}
+        
+        # Сортируем ключи по алфавиту
+        sorted_keys = sorted(data_to_sign.keys())
+        
+        # Формируем строку url-encoded
+        parts = []
+        for k in sorted_keys:
+            parts.append(f"{k}={urllib.parse.quote(str(data_to_sign[k]), safe='')}")
+        
+        data_string = "&".join(parts)
+        
+        computed_sign = hmac.new(
+            notification_secret.encode('utf-8'),
+            data_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        if hmac.compare_digest(computed_sign, received_sign):
+            return True
+            
+        logger.warning(
+            "ЮМани Sign Mismatch!\nСтрока: %s\nСекрет(len): %d\nОжидаемый: %s\nПрисланный: %s",
+            data_string, len(notification_secret), computed_sign, received_sign
+        )
+        return False
+
+    # 2. Фолбэк на старый формат (sha1_hash)
+    sha1_hash = form_data.get("sha1_hash", "")
+    notification_type = form_data.get("notification_type", "")
+    operation_id      = form_data.get("operation_id", "")
+    amount            = form_data.get("amount", "")
+    currency          = form_data.get("currency", "643")
+    datetime_str      = form_data.get("datetime", "")
+    sender            = form_data.get("sender", "")
+    codepro           = form_data.get("codepro", "false")
+    label             = form_data.get("label", "")
+
     check_str = "&".join([
         str(notification_type),
         str(operation_id),
@@ -81,12 +116,12 @@ def verify_yoomoney_signature(
         str(datetime_str),
         str(sender),
         str(codepro),
-        str(notification_secret),
+        notification_secret,
         str(label),
     ])
+    import hashlib
     expected = hashlib.sha1(check_str.encode("utf-8")).hexdigest()
     
-    # Для отладки: выводим строку, из которой считали хеш (секрет скрываем)
     debug_str = check_str.replace(notification_secret, "***SECRET***")
     if expected != sha1_hash:
         logger.warning(
@@ -135,18 +170,7 @@ async def yoomoney_notify(
         logger.error("YOOMONEY_SECRET не задан — уведомления не проверяются!")
         return {"status": "ok"}  # возвращаем 200 чтобы ЮМани не ретраил
 
-    is_valid = verify_yoomoney_signature(
-        notification_type=notification_type,
-        operation_id=operation_id,
-        amount=amount,
-        currency=currency,
-        datetime_str=datetime_str,
-        sender=sender,
-        codepro=codepro,
-        notification_secret=settings.yoomoney_secret.strip(),  # убираем случайные пробелы
-        label=label,
-        sha1_hash=sha1_hash,
-    )
+    is_valid = verify_yoomoney_signature(dict(form), settings.yoomoney_secret)
 
     if not is_valid:
         # Возвращаем 200 (иначе ЮМани будет ретраить и спамить лог)
