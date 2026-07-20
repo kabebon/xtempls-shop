@@ -111,6 +111,9 @@ async def yoomoney_notify(
           sender, codepro, label, sha1_hash.
     """
     form = await request.form()
+    
+    # ЛОГИРУЕМ ВСЕ ПОЛЯ ДЛЯ ОТЛАДКИ
+    logger.info("Raw YooMoney Form Data: %s", dict(form))
 
     notification_type = form.get("notification_type", "")
     operation_id      = form.get("operation_id", "")
