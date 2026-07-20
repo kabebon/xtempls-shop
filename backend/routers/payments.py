@@ -201,7 +201,7 @@ async def yoomoney_notify(
         logger.warning("ЮМани: заказ с label=%s не найден", label)
         return {"status": "ok"}
 
-    if order.payment_status == PaymentStatus.PAID:
+    if order.payment_status == PaymentStatus.paid:
         logger.info("Заказ %s уже оплачен, игнорируем", order.id)
         return {"status": "ok"}
 
@@ -216,8 +216,8 @@ async def yoomoney_notify(
         pass
 
     # 3. Обновляем статусы
-    order.payment_status = PaymentStatus.PAID
-    order.status = OrderStatus.PAID
+    order.payment_status = PaymentStatus.paid
+    order.status = OrderStatus.in_progress
     await db.commit()
     
     # 4. Уведомляем менеджера
