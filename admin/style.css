@@ -836,3 +836,94 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .promo-badge-active { color: #22c55e; font-weight: 700; font-size: 12px; }
 .promo-badge-inactive { color: var(--text-muted); font-weight: 700; font-size: 12px; }
 
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Адаптивность: маленькие экраны / телефоны / окно miniapp
+   Гарантируем что модалки, toast, таблицы и гриды не вылезают за границы и
+   ничего никуда не «съезжает». Применяется ко всем страницам админки.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Универсальный «контейнер с длинным словом» — не даёт длинной строке
+   (например url или email) раздвинуть колонку/блок по ширине. */
+table, .modal-body, .form-group, .form-input, .form-textarea {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Модалка: на узких экранах занимаем всю ширину с минимальными отступами,
+   чтобы контент не уходил за правый край и не обрезался. */
+.modal-overlay { padding: 12px; }
+.modal {
+  max-width: 600px;
+  max-height: 92vh;
+  /* Скролл только у тела модалки, чтобы шапка и футер всегда были видны */
+  display: flex;
+  flex-direction: column;
+}
+.modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.modal-header,
+.modal-footer { flex-shrink: 0; }
+
+@media (max-width: 600px) {
+  .modal-overlay { padding: 6px; }
+  .modal {
+    max-width: 100%;
+    max-height: 94vh;
+    border-radius: 12px;
+  }
+  .modal-header { padding: 14px 14px; }
+  .modal-body { padding: 14px; }
+  .modal-footer { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  .modal-footer .btn { width: 100%; }
+  .modal-title { font-size: 15px; }
+}
+
+/* Toast: на мобиле фиксируем слева и справа, чтобы длинное сообщение не
+   вылезало за правый край экрана и было видно целиком. */
+@media (max-width: 600px) {
+  .toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+}
+
+/* Грид в модалке просмотра заказа (2 колонки → 1 колонка на узких) */
+@media (max-width: 600px) {
+  .modal-body [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Таблица: компактнее на мобиле, переносим кнопки действий вертикально */
+@media (max-width: 600px) {
+  th, td { padding: 8px 8px; font-size: 12px; }
+  .table-wrap { -webkit-overflow-scrolling: touch; }
+  /* Кнопки действий в таблице заказов: вертикально, чтобы не растягивать ряд */
+  .table-wrap td > div[style*="display:flex;gap:4px"] {
+    flex-direction: column;
+    gap: 4px;
+    align-items: stretch;
+  }
+  .table-wrap td > div[style*="display:flex;gap:4px"] .form-select,
+  .table-wrap td > div[style*="display:flex;gap:4px"] .btn { width: 100%; }
+}
+
+/* Пагинация: кнопки крупнее под палец на мобиле */
+@media (max-width: 600px) {
+  .page-btn { width: 36px; height: 36px; font-size: 14px; }
+  .pagination { padding: 12px 12px; flex-wrap: wrap; }
+}
+
+/* Topbar: фильтры не должны вылезать */
+@media (max-width: 600px) {
+  .topbar { flex-wrap: wrap; gap: 8px; }
+  .topbar > div { flex-wrap: wrap; }
+  .search-input { max-width: 100%; min-width: 0; }
+}
+
+

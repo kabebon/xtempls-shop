@@ -6,7 +6,7 @@
   <title>XTEMPLS Admin — Заказы</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=1.0.1" />
 </head>
 <body>
 <div class="app-layout">
@@ -302,17 +302,25 @@
   };
 
   window.saveAdminNote = async function(id) {
-    const note = document.getElementById('adminNoteInput')?.value.trim() || null;
+    const ta = document.getElementById('adminNoteInput');
+    const btn = document.getElementById('saveNoteBtn');
+    const note = ta?.value.trim() || null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Сохранение...'; }
     const res = await apiFetch(`/api/admin/orders/${id}/note`, {
       method: 'PUT',
       body: JSON.stringify({ admin_note: note })
     });
     if (res.ok) {
+      // Сразу перерисовываем модалку свежими данными, чтобы юзер видел, что
+      // заметка реально сохранилась, и бейдж 📝 появился/исчез.
       showToast('Заметка сохранена', 'success');
-      loadOrders(); // обновим бейдж 📝 в списке
+      loadOrders(); // обновим бейдж 📝 в списке заказов
+      // Открываем тот же заказ заново — данные (admin_note) подтянутся из БД
+      await viewOrder(id);
     } else {
       const err = await res.json().catch(() => ({}));
       showToast(err.detail || 'Ошибка сохранения', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Сохранить заметку'; }
     }
   };
 
@@ -380,12 +388,12 @@
         </div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
-        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📝 Заметки менеджера</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">📝 Заметки менеджера ${o.admin_note ? '<span style="color:var(--success);font-weight:600;">• есть заметка</span>' : ''}</div>
         <textarea id="adminNoteInput" class="form-textarea" rows="3"
           placeholder="Внутренние заметки по заказу (видны только в админке)..."
-          style="width:100%;font-size:13px;">${(o.admin_note || '').replace(/</g, '&lt;')}</textarea>
+          style="width:100%;font-size:13px;min-height:80px;">${(o.admin_note || '').replace(/</g, '&lt;')}</textarea>
         <div style="display:flex;justify-content:flex-end;margin-top:8px;">
-          <button class="btn btn-primary" onclick="saveAdminNote(${o.id})">💾 Сохранить заметку</button>
+          <button class="btn btn-primary" id="saveNoteBtn" onclick="saveAdminNote(${o.id})">💾 Сохранить заметку</button>
         </div>
       </div>
     `;
