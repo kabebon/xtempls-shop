@@ -111,7 +111,7 @@ async def notify_manager_new_order(order) -> bool:
     else:
         text += "\n"
         
-    text += f"Управление заказами: /admin/orders.html"
+    text += f"Управление заказами: <a href='{settings.webapp_url}/admin/orders.html'>Перейти в админку</a>"
 
     manager_ids = [m_id.strip() for m_id in str(settings.manager_chat_id).split(",") if m_id.strip()]
     success = True

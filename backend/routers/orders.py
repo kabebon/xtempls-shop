@@ -110,11 +110,13 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
         payment_url = build_payment_url(order.id, total_amount, label)
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Notify manager asynchronously (don't fail request if notification fails)
-    try:
-        await notify_manager_new_order(order)
-    except Exception:
-        logger.exception("Manager notification failed for order #%s", order.id)
+    # Notify manager asynchronously ONLY if we didn't send them to YooMoney
+    # (Design requests or cases where YooMoney is not configured)
+    if not payment_url:
+        try:
+            await notify_manager_new_order(order)
+        except Exception:
+            logger.exception("Manager notification failed for order #%s", order.id)
 
     # Собираем ответ вручную чтобы добавить payment_url (не хранится в модели)
     out = OrderOut.model_validate(order)

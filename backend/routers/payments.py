@@ -10,10 +10,12 @@ import hashlib
 import logging
 import urllib.parse
 from decimal import Decimal
+from html import escape as html_escape
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database import get_db, settings
 from models import Order, PaymentStatus, OrderStatus
@@ -145,7 +147,7 @@ async def yoomoney_notify(
         return {"status": "ok"}
 
     result = await db.execute(
-        select(Order).where(Order.payment_label == label)
+        select(Order).options(selectinload(Order.items)).where(Order.payment_label == label)
     )
     order = result.scalar_one_or_none()
 
@@ -174,17 +176,38 @@ async def yoomoney_notify(
 
 
 async def _notify_manager_paid(order: Order, amount: str, operation_id: str):
-    """Уведомление менеджеру о подтверждённой оплате."""
+    """Уведомление менеджеру о подтверждённой оплате со всеми деталями заказа."""
     if not settings.manager_chat_id:
         return
+
+    items_text = "\n".join(
+        f"  • {html_escape(item.product_name)}"
+        f"{' (' + html_escape(item.size) + ')' if item.size else ''}"
+        f" × {item.quantity} — {int(item.product_price * item.quantity):,} ₽"
+        for item in order.items
+    )
+    total = sum(item.product_price * item.quantity for item in order.items)
+
     text = (
         f"💚 <b>Заказ #{order.id} ОПЛАЧЕН!</b>\n\n"
-        f"👤 <b>Покупатель:</b> {order.customer_name}\n"
-        f"📞 <b>Контакт:</b> {order.customer_contact}\n"
-        f"💰 <b>Сумма:</b> {amount} ₽\n"
-        f"🔑 <b>Операция ЮМани:</b> <code>{operation_id}</code>\n\n"
-        f"Управление заказами: /admin/orders.html"
+        f"👤 <b>Покупатель:</b> {html_escape(order.customer_name or '')}\n"
+        f"📞 <b>Контакт:</b> {html_escape(order.customer_contact or '')}\n"
     )
+
+    delivery_address = getattr(order, "delivery_address", None)
+    if delivery_address:
+        text += f"📦 <b>Адрес доставки:</b> {html_escape(delivery_address)}\n"
+
+    if order.comment:
+        text += f"📝 <b>Комментарий:</b> {html_escape(order.comment)}\n"
+
+    if order.items:
+        text += f"\n<b>Товары:</b>\n{items_text}\n\n"
+
+    text += f"💰 <b>Сумма оплаты:</b> {amount} ₽\n"
+    text += f"🔑 <b>Операция ЮМани:</b> <code>{operation_id}</code>\n\n"
+    text += f"Управление заказами: <a href='{settings.webapp_url}/admin/orders.html'>Перейти в админку</a>"
+
     manager_ids = [m.strip() for m in str(settings.manager_chat_id).split(",") if m.strip()]
     for m_id in manager_ids:
         try:
@@ -198,7 +221,9 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str):
 @router.get("/status/{order_id}")
 async def get_payment_status(order_id: int, db: AsyncSession = Depends(get_db)):
     """Фронтенд опрашивает статус оплаты после редиректа с ЮМани."""
-    result = await db.execute(select(Order).where(Order.id == order_id))
+    result = await db.execute(
+        select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+    )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
