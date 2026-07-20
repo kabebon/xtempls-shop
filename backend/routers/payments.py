@@ -208,8 +208,8 @@ async def yoomoney_notify(
     # Проверка суммы (дополнительная безопасность для подозрительных платежей)
     try:
         received_amount = Decimal(amount)
-        if abs(received_amount - order.total_amount) > Decimal("1.00"):
-            logger.error("ЮМани: Сумма %s не совпадает с суммой заказа %s", received_amount, order.total_amount)
+        if abs(received_amount - order.amount) > Decimal("1.00"):
+            logger.error("ЮМани: Сумма %s не совпадает с суммой заказа %s", received_amount, order.amount)
             if is_suspicious:
                 return {"status": "ok"} # Игнорируем полностью, если сумма не бьет и подпись не верна
     except Exception:
@@ -219,30 +219,8 @@ async def yoomoney_notify(
     order.payment_status = PaymentStatus.paid
     order.status = OrderStatus.in_progress
     await db.commit()
-    
+
     # 4. Уведомляем менеджера
-    items_text = "\n".join([f"• {i.product_name} x{i.quantity}" for i in order.items])
-    
-    warning_html = ""
-    if is_suspicious:
-        warning_html = (
-            "\n\n⚠️ <b>ВНИМАНИЕ: Криптографическая подпись ЮМани не совпала!</b>\n"
-            "Это может быть технический сбой на стороне ЮМани, но <b>ОБЯЗАТЕЛЬНО</b> "
-            "зайдите в приложение ЮМани и вручную проверьте, что деньги действительно "
-            "поступили, прежде чем отправлять товар!"
-        )
-        
-    msg = (
-        f"✅ <b>Заказ #{order.id} оплачен через ЮМани!</b>\n"
-        f"Сумма: {amount} руб.\n\n"
-        f"<b>Состав заказа:</b>\n{items_text}\n\n"
-        f"<b>Данные клиента:</b>\n"
-        f"Имя: {order.customer_name}\n"
-        f"Телефон: {order.customer_phone}\n"
-        f"Адрес: {order.customer_address}"
-        f"{warning_html}"
-    )
-    
     await _notify_manager_paid(order, amount, operation_id, is_suspicious)
 
     return {"status": "ok"}
