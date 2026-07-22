@@ -932,13 +932,21 @@ body {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   text-align: center;
+  /* Убираем штатное затемнение букв при тапе (особенно в Telegram WebApp) */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 .size-btn:hover:not(.unavailable) {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Анимация-пружина при нажатии — без затемнения текста */
+.size-btn:active:not(.unavailable):not(.selected) {
+  transform: scale(0.93);
 }
 
 .size-btn.selected {
@@ -1453,7 +1461,16 @@ body {
 .size-btn.selected {
   background: linear-gradient(135deg, #4C5A9E, #2E3359) !important;
   border-color: #2E3359 !important;
+  color: #ffffff !important;
   box-shadow: 0 4px 12px rgba(46, 51, 89, 0.2) !important;
+  animation: sizeSelectPop 0.25s ease;
+}
+
+/* Плавная подсветка выделенным фоном при выборе размера */
+@keyframes sizeSelectPop {
+  0%   { transform: scale(0.92); }
+  60%  { transform: scale(1.04); }
+  100% { transform: scale(1); }
 }
 
 
