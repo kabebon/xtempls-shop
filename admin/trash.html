@@ -6,7 +6,7 @@
   <title>XTEMPLS Admin — Корзина</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.0.1" />
+  <link rel="stylesheet" href="style.css?v=1.0.2" />
 </head>
 <body>
 <div class="app-layout">
@@ -151,7 +151,13 @@
   async function loadOrders() {
     const params = new URLSearchParams({ page: currentPage, per_page: 20 });
     const res = await apiFetch(`/api/admin/orders/trash?${params}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      document.getElementById('ordersTable').innerHTML =
+        `<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:40px">Ошибка загрузки корзины${err.detail ? ': ' + err.detail : ''}</td></tr>`;
+      showToast('Ошибка загрузки корзины', 'error');
+      return;
+    }
     const data = await res.json();
     totalPages = data.pages;
 

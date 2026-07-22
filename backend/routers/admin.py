@@ -310,6 +310,19 @@ async def admin_orders_stats(
     return {**orders_count, "tg_users": users_count}
 
 
+@router.get("/admin/orders/trash", response_model=OrderListResponse)
+async def admin_list_trashed_orders(
+    page: int = 1,
+    per_page: int = 20,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Список заказов в корзине (мягко удалённых).
+    Важно: этот статический маршрут должен идти ДО /{order_id},
+    иначе FastAPI попробует привести 'trash' к int и вернёт 422."""
+    return await crud.get_trashed_orders(db, page=page, per_page=per_page)
+
+
 @router.get("/admin/orders/{order_id}", response_model=OrderOut)
 async def admin_get_order(
     order_id: int,
@@ -360,17 +373,6 @@ async def admin_delete_order(
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
     await crud.delete_order(db, order_id)
-
-
-@router.get("/admin/orders/trash", response_model=OrderListResponse)
-async def admin_list_trashed_orders(
-    page: int = 1,
-    per_page: int = 20,
-    db: AsyncSession = Depends(get_db),
-    _: AdminUser = Depends(get_current_admin)
-):
-    """Список заказов в корзине (мягко удалённых)."""
-    return await crud.get_trashed_orders(db, page=page, per_page=per_page)
 
 
 @router.post("/admin/orders/{order_id}/restore", response_model=OrderOut)
