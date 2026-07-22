@@ -173,11 +173,20 @@
 
         <!-- Sizes -->
         <div style="margin-top:16px;">
-          <div class="form-label" style="margin-bottom:8px;">Размеры</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+            <div class="form-label" style="margin:0;">Размеры</div>
+            <button type="button" class="btn btn-secondary" id="sizesFromChartBtn"
+              onclick="fillSizesFromChart()" style="font-size:12px;padding:5px 10px;display:none;">
+              ↧ Заполнить из сетки
+            </button>
+          </div>
           <div class="sizes-editor" id="sizesEditor"></div>
           <div class="size-add-row">
             <input class="form-input" style="width:120px;" type="text" id="sizeInput" placeholder="S, M, L, XL..." />
             <button type="button" class="btn btn-secondary" onclick="addSize()">+ Добавить</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+            Кнопки выбора размера на витрине берутся отсюда. Если список пуст — покупатель не сможет выбрать размер.
           </div>
         </div>
 
@@ -353,6 +362,7 @@
     document.getElementById('productId').value = '';
     document.getElementById('imagesSection').style.display = 'none';
     renderSizes();
+    renderSizeChart({});  // сбрасываем размерную сетку для нового товара
     document.getElementById('productModal').classList.add('open');
   };
 
@@ -412,9 +422,15 @@
       <div class="sc-row" style="display:flex;gap:8px;margin-bottom:6px;">
         <input class="form-input sc-key" value="${k}" placeholder="XL" style="width:80px;flex-shrink:0;" />
         <input class="form-input sc-val" value="${v}" placeholder="50-52 / грудь 104-108 см" style="flex:1;" />
-        <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove()">✕</button>
+        <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove();updateSizesFromChartBtn()">✕</button>
       </div>
     `).join('');
+    // Навешиваем слушатели на динамически созданные поля, чтобы кнопка
+    // «Заполнить из сетки» реагировала на правки.
+    editor.querySelectorAll('.sc-key, .sc-val').forEach(el => {
+      el.addEventListener('input', updateSizesFromChartBtn);
+    });
+    updateSizesFromChartBtn();
   }
 
   window.addSizeChartRow = function() {
@@ -425,10 +441,49 @@
     row.innerHTML = `
       <input class="form-input sc-key" placeholder="XL" style="width:80px;flex-shrink:0;" />
       <input class="form-input sc-val" placeholder="50-52 / грудь 104-108 см" style="flex:1;" />
-      <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove()">✕</button>
+      <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:12px;" onclick="this.closest('.sc-row').remove();updateSizesFromChartBtn()">✕</button>
     `;
     editor.appendChild(row);
+    row.querySelector('.sc-key').addEventListener('input', updateSizesFromChartBtn);
+    row.querySelector('.sc-val').addEventListener('input', updateSizesFromChartBtn);
     row.querySelector('.sc-key').focus();
+    updateSizesFromChartBtn();
+  };
+
+  // Показываем кнопку «Заполнить из сетки», только если в размерной сетке
+  // есть хотя бы одна заполненная строка.
+  function updateSizesFromChartBtn() {
+    const btn = document.getElementById('sizesFromChartBtn');
+    if (!btn) return;
+    const chartKeys = getChartKeys();
+    btn.style.display = chartKeys.length > 0 ? '' : 'none';
+  }
+
+  function getChartKeys() {
+    const keys = [];
+    document.querySelectorAll('.sc-row').forEach(row => {
+      const k = row.querySelector('.sc-key')?.value.trim().toUpperCase();
+      if (k) keys.push(k);
+    });
+    return keys;
+  }
+
+  // Копируем ключи размерной сетки (S, M, L ...) в список размеров,
+  // не затирая уже добавленные.
+  window.fillSizesFromChart = function() {
+    const keys = getChartKeys();
+    if (keys.length === 0) {
+      showToast('Сначала заполните размерную сетку', 'error');
+      return;
+    }
+    let added = 0;
+    keys.forEach(k => {
+      if (!currentSizes.includes(k)) { currentSizes.push(k); added++; }
+    });
+    renderSizes();
+    showToast(added > 0
+      ? `Добавлено размеров: ${added}`
+      : 'Все размеры из сетки уже добавлены', 'success');
   };
 
   // Save product

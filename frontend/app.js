@@ -1066,6 +1066,10 @@ if (isProductPage) {
   let images = [];
   let currentImg = 0;
   let selectedSize = null;
+  // Размеры, доступные для выбора на витрине: по умолчанию берём из
+  // product_sizes, а если их нет — из ключей size_chart, чтобы покупатель
+  // всё равно мог выбрать размер (размерная сетка выступает источником).
+  let effectiveSizes = [];
 
   // Back navigation. Prefer history.back() when there's somewhere to go back
   // to, otherwise fall back to the catalog. This fixes "back button does
@@ -1316,17 +1320,31 @@ if (isProductPage) {
         }
       }
 
-      // Sizes
-      renderSizes(p.sizes);
+      // Размеры для выбора: product_sizes имеют приоритет. Если их нет, но
+      // задана размерная сетка — строим кнопки из её ключей (S, M, L ...).
+      // Так покупатель всегда может выбрать размер, даже если менеджер
+      // заполнил только размерную сетку.
+      let chart = p.size_chart;
+      if (typeof chart === 'string') {
+        try { chart = JSON.parse(chart); } catch (e) { chart = null; }
+      }
+      const hasChart = chart && Object.keys(chart).length > 0;
+
+      if (p.sizes && p.sizes.length > 0) {
+        effectiveSizes = p.sizes;
+      } else if (hasChart) {
+        effectiveSizes = Object.keys(chart).map((size, i) => ({
+          size, is_available: true, sort_order: i,
+        }));
+      } else {
+        effectiveSizes = [];
+      }
+      renderSizes(effectiveSizes);
 
       // Size chart link
       const sizeChartLink = document.getElementById('sizeChartLink');
       if (sizeChartLink) {
-        let chart = p.size_chart;
-        if (typeof chart === 'string') {
-          try { chart = JSON.parse(chart); } catch (e) { chart = null; }
-        }
-        if (chart && Object.keys(chart).length > 0) {
+        if (hasChart) {
           sizeChartLink.style.display = 'inline-flex';
           sizeChartLink.onclick = () => openSizeChart(chart);
         } else {
@@ -1353,7 +1371,7 @@ if (isProductPage) {
             showToast('Товар отсутствует в наличии');
             return;
           }
-          if (p.sizes && p.sizes.length > 0 && !selectedSize) {
+          if (effectiveSizes.length > 0 && !selectedSize) {
             showToast('Пожалуйста, выберите размер');
             return;
           }
