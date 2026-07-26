@@ -19,7 +19,8 @@ from schemas import (
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
     AdminUserCreate, AdminUserUpdate,
     OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, BroadcastRequest,
-    PromoCodeCreate, PromoCodeOut, ImageReorderRequest
+    PromoCodeCreate, PromoCodeOut, ImageReorderRequest,
+    SubscriberOut, SubscriberListResponse,
 )
 from models import AdminUser
 from notifications import broadcast as tg_broadcast, get_broadcast_status
@@ -527,3 +528,22 @@ async def admin_delete_user(
     if not target:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     await crud.delete_admin(db, user_id)
+
+
+# ── Admin: Bot subscribers ─────────────────────────────────────────────
+
+@router.get("/admin/subscribers", response_model=SubscriberListResponse)
+async def admin_list_subscribers(
+    page: int = 1,
+    per_page: int = 20,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Подписчики бота (кто нажал /start) со сводкой по заказам.
+
+    Возвращает профиль из Telegram (username, имя, chat_id, когда зашёл и
+    когда был в сети) плюс агрегаты: сколько заказов оформил и на какую
+    сумму, дата последнего заказа и контакты из него.
+    """
+    return await crud.get_subscribers(db, page=page, per_page=per_page, search=search)

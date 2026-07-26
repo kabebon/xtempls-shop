@@ -224,6 +224,39 @@ class TgUserOut(BaseModel):
         from_attributes = True
 
 
+class SubscriberOut(BaseModel):
+    """Подписчик бота со сводкой по заказам.
+
+    Поля из tg_users (профиль в Telegram) + агрегаты по заказам этого
+    пользователя: сколько всего заказов оформлено и на какую сумму,
+    а также дата последнего заказа. Поля *_contact берём из последнего
+    заказа (если есть) — иногда телефон/адрес там понятнее, чем в ТГ.
+    """
+    id: int
+    chat_id: int
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    started_at: datetime
+    last_seen: Optional[datetime] = None
+
+    orders_count: int = 0
+    total_spent: Optional[Decimal] = None
+    last_order_at: Optional[datetime] = None
+    last_phone: Optional[str] = None
+    last_telegram: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubscriberListResponse(BaseModel):
+    items: List[SubscriberOut]
+    total: int
+    page: int
+    pages: int
+
+
 # ─── Orders ───────────────────────────────────────────────────────────────────
 
 class OrderItemCreate(BaseModel):

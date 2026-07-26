@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Подписчики</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.0.1" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Дашборд
+    </a>
+    <a class="nav-item" href="products.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      Товары
+    </a>
+    <a class="nav-item" href="categories.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+      </svg>
+      Категории
+    </a>
+    <a class="nav-item" href="orders.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      Заказы
+    </a>
+    <a class="nav-item" href="trash.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+      </svg>
+      Корзина
+    </a>
+    <a class="nav-item active" href="subscribers.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Подписчики
+    </a>
+    <a class="nav-item" href="users.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Администраторы
+    </a>
+    <a class="nav-item" href="promo.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M7 7h.01M7 3h5l7 7-7 7-7-7V7a4 4 0 014-4z"/>
+      </svg>
+      Промокоды
+    </a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Подписчики бота</div>
+      <input class="search-input" id="searchInput" type="text" placeholder="🔍 Поиск по имени, @username или chat_id..."
+        style="max-width:360px;" oninput="onSearchInput()" />
+    </div>
+
+    <div class="page-content" style="padding:0">
+      <div class="table-card" style="border-radius:0;border-left:none;border-right:none;border-bottom:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Подписчик</th>
+                <th>@username</th>
+                <th>Контакты</th>
+                <th>Заказов</th>
+                <th>Потрачено</th>
+                <th>Подписался</th>
+                <th>Последний заказ</th>
+              </tr>
+            </thead>
+            <tbody id="subscribersTable">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  let currentPage = 1;
+  let totalPages = 1;
+  let currentSearch = '';
+  let searchTimer = null;
+
+  function onSearchInput() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      currentSearch = document.getElementById('searchInput').value.trim();
+      currentPage = 1;
+      loadSubscribers();
+    }, 300);
+  }
+
+  function fullName(s) {
+    const parts = [s.first_name, s.last_name].filter(Boolean);
+    return parts.join(' ') || '—';
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('ru-RU', {
+      day: '2-digit', month: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+
+  function contactsBlock(s) {
+    const parts = [];
+    if (s.last_phone) parts.push('📞 ' + s.last_phone);
+    if (s.last_telegram) parts.push('💬 @' + String(s.last_telegram).replace(/^@/, ''));
+    return parts.length ? parts.join('<br>') : '<span style="color:var(--text-muted)">—</span>';
+  }
+
+  async function loadSubscribers() {
+    const params = new URLSearchParams({ page: currentPage, per_page: 20 });
+    if (currentSearch) params.append('search', currentSearch);
+
+    const res = await apiFetch(`/api/admin/subscribers?${params}`);
+    if (!res.ok) {
+      showToast('Ошибка загрузки', 'error');
+      return;
+    }
+    const data = await res.json();
+    totalPages = data.pages;
+
+    const tbody = document.getElementById('subscribersTable');
+    if (data.items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px">' +
+        (currentSearch ? 'Ничего не найдено' : 'Нет подписчиков') + '</td></tr>';
+    } else {
+      tbody.innerHTML = data.items.map(s => {
+        const tgLink = s.username
+          ? `<a href="https://t.me/${s.username}" target="_blank" style="color:var(--accent)">@${s.username}</a>`
+          : '—';
+        const spent = s.total_spent ? `<strong>${fmt(s.total_spent)}</strong>` : '<span style="color:var(--text-muted)">—</span>';
+        const orders = s.orders_count
+          ? `<span class="badge badge-blue">${s.orders_count}</span>`
+          : '<span style="color:var(--text-muted)">0</span>';
+        return `
+          <tr>
+            <td>
+              <strong>${fullName(s)}</strong>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">ID: ${s.chat_id}</div>
+            </td>
+            <td>${tgLink}</td>
+            <td style="font-size:12px;color:var(--text-sec)">${contactsBlock(s)}</td>
+            <td>${orders}</td>
+            <td>${spent}</td>
+            <td style="white-space:nowrap;font-size:12px;color:var(--text-muted)">${fmtDate(s.started_at)}</td>
+            <td style="white-space:nowrap;font-size:12px;color:var(--text-muted)">${fmtDate(s.last_order_at)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    renderPagination();
+  }
+
+  function renderPagination() {
+    const pag = document.getElementById('pagination');
+    if (totalPages <= 1) { pag.innerHTML = ''; return; }
+    let html = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 2) {
+        html += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+      } else if (Math.abs(i - currentPage) === 3) {
+        html += `<span style="color:var(--text-muted);padding:0 4px">…</span>`;
+      }
+    }
+    html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+    pag.innerHTML = html;
+  }
+
+  window.goPage = function(p) {
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    loadSubscribers();
+  };
+
+  loadSubscribers();
+</script>
+</body>
+</html>

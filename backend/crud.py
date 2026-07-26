@@ -2,7 +2,7 @@ import math
 from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, delete
+from sqlalchemy import select, func, update, delete, String
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -326,6 +326,115 @@ async def get_all_tg_chat_ids(db: AsyncSession) -> list[int]:
 async def get_tg_users_count(db: AsyncSession) -> int:
     result = await db.execute(select(func.count()).select_from(TgUser))
     return result.scalar()
+
+
+async def get_subscribers(
+    db: AsyncSession,
+    page: int = 1,
+    per_page: int = 20,
+    search: Optional[str] = None,
+) -> dict:
+    """Список подписчиков бота со сводкой по заказам.
+
+    Для каждого пользователя из tg_users считаем агрегаты по заказам
+    (считаем только активные заказы, без корзины):
+      - orders_count — сколько заказов оформлено
+      - total_spent — суммарная стоимость всех заказов
+      - last_order_at — дата последнего заказа
+      - last_phone / last_telegram — контакты из последнего заказа
+
+    search ищет по username, имени и фамилии (без учёта регистра).
+    """
+    # Агрегаты по заказам — отдельным подзапросом, потом джойним к TgUser.
+    # DISTINCT в count нужен потому, что JOIN с OrderItem разворачивает
+    # многопозиционные заказы в несколько строк (иначе заказ с 3 позициями
+    # посчитался бы как 3 заказа).
+    order_agg = (
+        select(
+            Order.tg_user_chat_id.label("chat_id"),
+            func.count(Order.id.distinct()).label("orders_count"),
+            func.sum(OrderItem.product_price * OrderItem.quantity).label("total_spent"),
+            func.max(Order.created_at).label("last_order_at"),
+        )
+        .join(OrderItem, OrderItem.order_id == Order.id, isouter=True)
+        .where(Order.is_deleted == False)
+        .group_by(Order.tg_user_chat_id)
+        .subquery()
+    )
+
+    # Подзапрос: контакты последнего заказа каждого пользователя.
+    # DISTINCT ON даёт одну строку на chat_id — самую свежую по created_at.
+    last_contacts = (
+        select(
+            Order.tg_user_chat_id.label("chat_id"),
+            Order.customer_phone.label("last_phone"),
+            Order.customer_telegram.label("last_telegram"),
+        )
+        .select_from(Order)
+        .where(Order.is_deleted == False, Order.tg_user_chat_id.isnot(None))
+        .distinct(Order.tg_user_chat_id)
+        .order_by(Order.tg_user_chat_id, Order.created_at.desc())
+        .subquery()
+    )
+
+    base = (
+        select(
+            TgUser,
+            func.coalesce(order_agg.c.orders_count, 0).label("orders_count"),
+            order_agg.c.total_spent.label("total_spent"),
+            order_agg.c.last_order_at.label("last_order_at"),
+            last_contacts.c.last_phone.label("last_phone"),
+            last_contacts.c.last_telegram.label("last_telegram"),
+        )
+        .select_from(TgUser)
+        .outerjoin(order_agg, order_agg.c.chat_id == TgUser.chat_id)
+        .outerjoin(last_contacts, last_contacts.c.chat_id == TgUser.chat_id)
+    )
+
+    if search:
+        like = f"%{search.lower()}%"
+        base = base.where(
+            func.lower(func.coalesce(TgUser.username, "")).like(like)
+            | func.lower(func.coalesce(TgUser.first_name, "")).like(like)
+            | func.lower(func.coalesce(TgUser.last_name, "")).like(like)
+            | func.cast(TgUser.chat_id, String).like(like)
+        )
+
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar()
+
+    rows = (
+        await db.execute(
+            base.order_by(TgUser.started_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+        )
+    ).all()
+
+    items = []
+    for user, orders_count, total_spent, last_order_at, last_phone, last_telegram in rows:
+        items.append(
+            {
+                "id": user.id,
+                "chat_id": user.chat_id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "started_at": user.started_at,
+                "last_seen": user.last_seen,
+                "orders_count": orders_count or 0,
+                "total_spent": total_spent,
+                "last_order_at": last_order_at,
+                "last_phone": last_phone,
+                "last_telegram": last_telegram,
+            }
+        )
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "pages": max(1, math.ceil(total / per_page)),
+    }
 
 
 # ── Orders ──────────────────────────────────────────────────────────────────────────
