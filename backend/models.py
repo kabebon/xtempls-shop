@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, Numeric,
-    ForeignKey, DateTime, func, Enum as SAEnum, BigInteger, JSON
+    ForeignKey, DateTime, func, Enum as SAEnum, BigInteger, JSON,
+    UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -107,6 +108,94 @@ class OrderStatus(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class BonusTxType(str, enum.Enum):
+    accrual = "accrual"   # начисление бонусов (покупка, рефералка)
+    spend = "spend"       # списание бонусов (оплата частью заказа)
+
+
+class User(Base):
+    """Зарегистрированный пользователь личного кабинета (email + пароль).
+
+    Отдельная таблица от tg_users: те создаются автоматически из бота без email,
+    а здесь — полноценные аккаунты магазина с верификацией, бонусами и рефералкой.
+    Связь с заказами через Order.user_id (nullable — заказ может быть анонимным).
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(200), nullable=False, unique=True, index=True)
+    password_hash = Column(String(200), nullable=False)
+    name = Column(String(150), nullable=True)
+    phone = Column(String(30), nullable=True)
+    is_verified = Column(Boolean, default=False, nullable=False, server_default="0")
+    is_active = Column(Boolean, default=True, nullable=False, server_default="1")
+    verification_token = Column(String(100), nullable=True, index=True)
+    referred_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    referral_code = Column(String(32), nullable=False, unique=True, index=True)
+    bonus_balance = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
+    notification_prefs = Column(JSON, nullable=True)  # {"order_updates": bool, "promo": bool}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    referred_by = relationship("User", remote_side=[id], back_populates="referrals")
+    orders = relationship("Order", back_populates="user", foreign_keys="[Order.user_id]", lazy="selectin")
+    addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    referrals = relationship("User", back_populates="referred_by")
+    bonus_transactions = relationship("BonusTransaction", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+
+
+class Address(Base):
+    """Сохранённые адреса доставки пользователя личного кабинета."""
+    __tablename__ = "addresses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    label = Column(String(50), nullable=True)            # "Дом", "Работа"
+    recipient = Column(String(150), nullable=True)
+    phone = Column(String(30), nullable=True)
+    city = Column(String(100), nullable=True)
+    street = Column(String(200), nullable=True)
+    house = Column(String(20), nullable=True)
+    apt = Column(String(20), nullable=True)
+    zip = Column(String(20), nullable=True)
+    is_default = Column(Boolean, default=False, nullable=False, server_default="0")
+
+    user = relationship("User", back_populates="addresses")
+
+
+class Favorite(Base):
+    """Избранные товары пользователя (wishlist)."""
+    __tablename__ = "favorites"
+    __table_args__ = (UniqueConstraint("user_id", "product_id", name="uq_favorite_user_product"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="favorites")
+    product = relationship("Product")
+
+
+class BonusTransaction(Base):
+    """История начислений/списаний бонусов пользователя.
+
+    Шаблон: конкретная логика начисления (например, % от заказа или за
+    реферальную покупку) допишется позже. Сейчас хранит аудит баланса.
+    """
+    __tablename__ = "bonus_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(Numeric(10, 2), nullable=False)      # положительное число
+    reason = Column(String(200), nullable=True)          # "Заказ #12", "Реферальный бонус"
+    type = Column(SAEnum(BonusTxType), default=BonusTxType.accrual, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="bonus_transactions")
+
+
 class PaymentStatus(str, enum.Enum):
     pending = "pending"    # ждём оплаты
     paid = "paid"          # ЮМани подтвердил
@@ -123,6 +212,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tg_user_chat_id = Column(BigInteger, ForeignKey("tg_users.chat_id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     customer_name = Column(String(150), nullable=False)
     customer_contact = Column(String(200), nullable=True)   # legacy: phone or @username (старые заказы)
     customer_phone = Column(String(30), nullable=True)      # новый формат: телефон
@@ -145,6 +235,7 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     tg_user = relationship("TgUser", back_populates="orders")
+    user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin")
 
 

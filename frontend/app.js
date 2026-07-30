@@ -383,7 +383,13 @@ window.submitOrder = async function(e) {
 
     const res = await fetch(`${API}/orders/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        // Если пользователь залогинен в личном кабинете — привязываем заказ
+        // к его аккаунту (необязательно: анонимный заказ тоже проходит).
+        ...(localStorage.getItem('xtempls_token')
+          ? { 'Authorization': `Bearer ${localStorage.getItem('xtempls_token')}` } : {}),
+      },
       body: JSON.stringify(body)
     });
 

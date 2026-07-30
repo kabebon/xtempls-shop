@@ -16,6 +16,9 @@ ssl/
 certbot/
 node_modules/
 
+# Демп писем mailer'а в режиме заглушки (SMTP_HOST пуст)
+backend/mail_log/
+
 # Секреты / ключи — никогда не коммитить
 *.pem
 *.key

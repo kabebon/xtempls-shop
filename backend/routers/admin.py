@@ -24,6 +24,10 @@ from schemas import (
 )
 from models import AdminUser
 from notifications import broadcast as tg_broadcast, get_broadcast_status
+from mailer import send_order_status_email
+import logging
+
+_admin_logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin"])
 
@@ -346,6 +350,17 @@ async def admin_update_order_status(
     order = await crud.update_order_status(db, order_id, data.status)
     if not order:
         raise HTTPException(status_code=400, detail="Неверный статус или заказ не найден")
+
+    # Email-уведомление пользователю о смене статуса, если заказ привязан к
+    # аккаунту с подтверждённой почтой и включённой настройкой order_updates.
+    user = getattr(order, "user", None)
+    if user and user.is_verified and user.email:
+        prefs = user.notification_prefs or {}
+        if prefs.get("order_updates", True):
+            try:
+                await send_order_status_email(user, order)
+            except Exception:
+                _admin_logger.exception("Не удалось отправить email по заказу #%s", order_id)
     return order
 
 

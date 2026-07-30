@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>XTEMPLS — Вход</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
+  <link rel="stylesheet" href="style.css?v=1.0.12" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<!-- Back Button -->
+<button class="back-btn" id="backBtn">
+  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+  </svg>
+  <span class="back-btn-text">Назад</span>
+</button>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1 class="auth-title">Вход в личный кабинет</h1>
+    <p class="auth-subtitle">Войдите, чтобы увидеть заказы, бонусы и реферальную программу</p>
+
+    <form id="loginForm" autocomplete="on">
+      <label class="chk-label" for="email">Email</label>
+      <input class="chk-input" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+
+      <label class="chk-label" for="password">Пароль</label>
+      <input class="chk-input" type="password" id="password" name="password" placeholder="Ваш пароль" autocomplete="current-password" required />
+
+      <button type="submit" class="checkout-submit-btn" id="submitBtn">Войти</button>
+    </form>
+
+    <p class="auth-switch">
+      Нет аккаунта? <a href="/register.html" class="auth-link">Зарегистрироваться</a>
+    </p>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="account.js?v=1.0.12"></script>
+</body>
+</html>

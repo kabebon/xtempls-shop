@@ -6,7 +6,11 @@ from sqlalchemy import select, func, update, delete, String
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from models import Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser, Order, OrderItem, OrderStatus, PromoCode
+from models import (
+    Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser,
+    Order, OrderItem, OrderStatus, PromoCode,
+    User, Address, Favorite, BonusTransaction, BonusTxType,
+)
 from schemas import (
     CategoryCreate, CategoryUpdate,
     ProductCreate, ProductUpdate,
@@ -14,6 +18,7 @@ from schemas import (
     OrderCreate,
 )
 from auth import get_password_hash
+from database import settings
 
 
 # ─── Categories ───────────────────────────────────────────────────────────────
@@ -477,6 +482,7 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
         delivery_address=getattr(data, "delivery_address", None),
         comment=data.comment,
         order_type=getattr(data, "order_type", None),
+        user_id=getattr(data, "user_id", None),
     )
     db.add(order)
     await db.flush()
@@ -684,3 +690,310 @@ async def toggle_promo_code(db: AsyncSession, promo_id: int) -> Optional[PromoCo
     await db.commit()
     await db.refresh(promo)
     return promo
+
+
+# ─── Пользователи личного кабинета (users) ───────────────────────────────────
+
+import secrets
+import string
+
+_REF_ALPHABET = string.ascii_uppercase + string.digits  # без неоднозначных символов
+# убираем похожие 0/O, 1/I чтобы коды читались легче
+_REF_ALPHABET = _REF_ALPHABET.replace("O", "").replace("0", "").replace("I", "").replace("1", "")
+
+
+def _generate_referral_code(length: int = 8) -> str:
+    """Короткий читаемый код (X7KQ-стиль). Уникальность проверяет вызывающий код."""
+    return "".join(secrets.choice(_REF_ALPHABET) for _ in range(length))
+
+
+def _generate_token() -> str:
+    """Длинный непредсказуемый токен подтверждения email."""
+    return secrets.token_urlsafe(32)
+
+
+async def _unique_referral_code(db: AsyncSession) -> str:
+    """Подбирает уникальный реферальный код (коллизии крайне редки)."""
+    for _ in range(10):
+        code = _generate_referral_code()
+        exists = await db.execute(select(User.id).where(User.referral_code == code))
+        if not exists.scalar_one_or_none():
+            return code
+    # Запасной вариант — с большей энтропией.
+    return _generate_referral_code(16)
+
+
+async def create_user(db: AsyncSession, email: str, password: str,
+                      name: str = None, phone: str = None,
+                      ref_code: str = None) -> User:
+    """Создать аккаунт. email приводим к нижнему регистру, генерим referral_code
+    и verification_token. Если ref_code валиден — привязываем пригласившего."""
+    referral_code = await _unique_referral_code(db)
+    user = User(
+        email=email.lower().strip(),
+        password_hash=get_password_hash(password),
+        name=(name or "").strip() or None,
+        phone=phone,
+        referral_code=referral_code,
+        verification_token=_generate_token(),
+        notification_prefs={"order_updates": True, "promo": True},
+    )
+
+    # Привязка реферала: ищем пригласившего по коду (нельзя приглашать самого себя,
+    # на момент создания это невозможно, но проверим в порядке).
+    if ref_code:
+        referrer = await db.execute(
+            select(User).where(User.referral_code == ref_code.strip().upper())
+        )
+        referrer = referrer.scalar_one_or_none()
+        if referrer:
+            user.referred_by_id = referrer.id
+
+    db.add(user)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
+    await db.refresh(user)
+    return user
+
+
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+    result = await db.execute(select(User).where(User.email == email.lower().strip()))
+    return result.scalar_one_or_none()
+
+
+async def get_user(db: AsyncSession, user_id: int) -> Optional[User]:
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
+
+
+async def verify_user(db: AsyncSession, token: str) -> Optional[User]:
+    """Подтвердить email по токену. Возвращает пользователя или None."""
+    if not token:
+        return None
+    result = await db.execute(select(User).where(User.verification_token == token))
+    user = result.scalar_one_or_none()
+    if not user:
+        return None
+    user.is_verified = True
+    user.verification_token = None
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def update_user(db: AsyncSession, user_id: int, values: dict) -> Optional[User]:
+    if not values:
+        user = await get_user(db, user_id)
+        return user
+    await db.execute(update(User).where(User.id == user_id).values(**values))
+    await db.commit()
+    return await get_user(db, user_id)
+
+
+async def change_user_password(db: AsyncSession, user_id: int, new_password: str) -> None:
+    await db.execute(
+        update(User).where(User.id == user_id)
+        .values(password_hash=get_password_hash(new_password))
+    )
+    await db.commit()
+
+
+# ─── Адреса ──────────────────────────────────────────────────────────────────
+
+async def list_addresses(db: AsyncSession, user_id: int) -> list[Address]:
+    result = await db.execute(
+        select(Address)
+        .where(Address.user_id == user_id)
+        .order_by(Address.is_default.desc(), Address.id.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def create_address(db: AsyncSession, user_id: int, data) -> Address:
+    values = data.model_dump(exclude_unset=False)
+    # Снимаем is_default из значений, чтобы обработать логику «только один дефолт».
+    make_default = values.pop("is_default", False)
+    address = Address(user_id=user_id, **values)
+    db.add(address)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise
+    await db.refresh(address)
+    if make_default:
+        await set_default_address(db, user_id, address.id)
+    return address
+
+
+async def get_address(db: AsyncSession, user_id: int, address_id: int) -> Optional[Address]:
+    result = await db.execute(
+        select(Address).where(Address.id == address_id, Address.user_id == user_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_address(db: AsyncSession, user_id: int, address_id: int, data) -> Optional[Address]:
+    values = data.model_dump(exclude_unset=True)
+    make_default = values.pop("is_default", None)
+    if values:
+        await db.execute(
+            update(Address).where(Address.id == address_id, Address.user_id == user_id).values(**values)
+        )
+        await db.commit()
+    if make_default:
+        await set_default_address(db, user_id, address_id)
+    return await get_address(db, user_id, address_id)
+
+
+async def set_default_address(db: AsyncSession, user_id: int, address_id: int) -> None:
+    """Сначала снимаем флаг у всех адресов пользователя, потом ставим одному."""
+    await db.execute(
+        update(Address).where(Address.user_id == user_id).values(is_default=False)
+    )
+    await db.execute(
+        update(Address).where(Address.id == address_id, Address.user_id == user_id).values(is_default=True)
+    )
+    await db.commit()
+
+
+async def delete_address(db: AsyncSession, user_id: int, address_id: int) -> bool:
+    result = await db.execute(
+        delete(Address).where(Address.id == address_id, Address.user_id == user_id)
+    )
+    await db.commit()
+    return (result.rowcount or 0) > 0
+
+
+# ─── Избранное ───────────────────────────────────────────────────────────────
+
+async def list_favorites(db: AsyncSession, user_id: int) -> list[Favorite]:
+    result = await db.execute(
+        select(Favorite)
+        .options(selectinload(Favorite.product).selectinload(Product.images))
+        .where(Favorite.user_id == user_id)
+        .order_by(Favorite.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def add_favorite(db: AsyncSession, user_id: int, product_id: int) -> Favorite:
+    # Проверяем существование товара.
+    product = await db.execute(select(Product).where(Product.id == product_id, Product.is_active == True))
+    if not product.scalar_one_or_none():
+        raise ValueError("Товар не найден")
+    fav = Favorite(user_id=user_id, product_id=product_id)
+    db.add(fav)
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Уже в избранном — возвращаем существующую запись.
+        await db.rollback()
+        existing = await db.execute(
+            select(Favorite).where(Favorite.user_id == user_id, Favorite.product_id == product_id)
+        )
+        return existing.scalar_one()
+    await db.refresh(fav)
+    return fav
+
+
+async def remove_favorite(db: AsyncSession, user_id: int, product_id: int) -> bool:
+    result = await db.execute(
+        delete(Favorite).where(Favorite.user_id == user_id, Favorite.product_id == product_id)
+    )
+    await db.commit()
+    return (result.rowcount or 0) > 0
+
+
+# ─── Рефералка ───────────────────────────────────────────────────────────────
+
+async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
+    """Код приглашающего, личная ссылка и число приглашённых.
+
+    Логика начисления бонусов за рефералку — ШАБЛОН: допишется после согласования
+    правил (например, бонус пригласившему после первой оплаченной покупки друга).
+    """
+    user = await get_user(db, user_id)
+    base_url = (settings.webapp_url or "").rstrip("/")
+    invited_count = (
+        await db.execute(select(func.count()).select_from(User).where(User.referred_by_id == user_id))
+    ).scalar() or 0
+    return {
+        "referral_code": user.referral_code,
+        "referral_link": f"{base_url}/?ref={user.referral_code}" if base_url else f"/?ref={user.referral_code}",
+        "invited_count": invited_count,
+    }
+
+
+# ─── Бонусы ──────────────────────────────────────────────────────────────────
+
+async def get_bonus_balance(db: AsyncSession, user_id: int) -> Decimal:
+    user = await get_user(db, user_id)
+    return user.bonus_balance if user else Decimal("0")
+
+
+async def list_bonus_transactions(db: AsyncSession, user_id: int) -> list[BonusTransaction]:
+    result = await db.execute(
+        select(BonusTransaction)
+        .where(BonusTransaction.user_id == user_id)
+        .order_by(BonusTransaction.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def add_bonus_transaction(db: AsyncSession, user_id: int, amount,
+                                reason: str = None,
+                                tx_type: BonusTxType = BonusTxType.accrual) -> BonusTransaction:
+    """Начислить/списать бонусы и обновить баланс пользователя.
+
+    ШАБЛОН: сейчас вызывается вручную при наступлении правил (рефералка, % от
+    заказа). Пересчёт баланса держим в одном месте, чтобы не рассинхронизировать
+    balance и сумму транзакций.
+    """
+    from decimal import Decimal as _D
+    amount = _D(amount)
+    tx = BonusTransaction(user_id=user_id, amount=amount, reason=reason, type=tx_type)
+    db.add(tx)
+    # Корректируем баланс: начисление — плюс, списание — минус.
+    delta = amount if tx_type == BonusTxType.accrual else -amount
+    await db.execute(
+        update(User).where(User.id == user_id)
+        .values(bonus_balance=User.bonus_balance + delta)
+    )
+    await db.commit()
+    await db.refresh(tx)
+    return tx
+
+
+# ─── Заказы пользователя ─────────────────────────────────────────────────────
+
+async def get_user_orders(db: AsyncSession, user_id: int,
+                          page: int = 1, per_page: int = 10) -> dict:
+    q = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.user_id == user_id, Order.is_deleted == False)
+        .order_by(Order.created_at.desc())
+    )
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    rows = (
+        await db.execute(q.offset((page - 1) * per_page).limit(per_page))
+    ).scalars().all()
+    return {
+        "items": list(rows),
+        "total": total,
+        "page": page,
+        "pages": max(1, math.ceil(total / per_page)),
+    }
+
+
+async def get_user_order(db: AsyncSession, user_id: int, order_id: int) -> Optional[Order]:
+    result = await db.execute(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == order_id, Order.user_id == user_id, Order.is_deleted == False)
+    )
+    return result.scalar_one_or_none()

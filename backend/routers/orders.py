@@ -13,6 +13,7 @@ from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest,
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
 from routers.payments import build_payment_url
+from auth import get_optional_user, User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -44,7 +45,11 @@ async def register_tg_user(
 # ─── Public: Create order ─────────────────────────────────────────────────────
 
 @router.post("/", response_model=OrderOut, status_code=201)
-async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
+async def create_order(
+    data: OrderCreate,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_user),
+):
     # A design request may legitimately have no items; a catalog order must have ≥1.
     is_design = data.order_type == OrderType.design
     if not data.items and not is_design:
@@ -92,6 +97,10 @@ async def create_order(data: OrderCreate, db: AsyncSession = Depends(get_db)):
                 pass
         # If invalid/missing signature — still accept the order, just no chat_id.
     data.tg_user_chat_id = verified_chat_id
+
+    # Привязываем заказ к аккаунту, если пользователь залогинен (необязательно —
+    # анонимный заказ остаётся полностью рабочим, без user_id).
+    data.user_id = user.id if user else None
 
     try:
         order = await crud.create_order(db, data)

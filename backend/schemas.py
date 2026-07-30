@@ -1,5 +1,5 @@
 import re
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, EmailStr
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
@@ -281,6 +281,7 @@ class OrderCreate(BaseModel):
     items: List[OrderItemCreate] = Field(default_factory=list)
     tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
     tg_init_data: Optional[str] = None
+    user_id: Optional[int] = None  # set from the optional Bearer token (logged-in user)
     order_type: OrderType = OrderType.catalog
     promo_code: Optional[str] = None  # promo code applied at checkout
     consent_accepted: bool = Field(
@@ -435,3 +436,154 @@ class ImageReorderItem(BaseModel):
 
 class ImageReorderRequest(BaseModel):
     images: List[ImageReorderItem]
+
+
+# ─── Личный кабинет пользователя ─────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    ref_code: Optional[str] = Field(None, max_length=32)  # реферальный код пригласившего
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_verified: bool
+    bonus_balance: Decimal = Decimal("0")
+    referral_code: str
+    notification_prefs: Optional[Dict[str, bool]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class NotificationPrefs(BaseModel):
+    """Настройки уведомлений (email). Всё опционально — частичное обновление."""
+    order_updates: Optional[bool] = None
+    promo: Optional[bool] = None
+
+
+# ─── Адреса ──────────────────────────────────────────────────────────────────
+
+class AddressCreate(BaseModel):
+    label: Optional[str] = Field(None, max_length=50)
+    recipient: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    city: Optional[str] = Field(None, max_length=100)
+    street: Optional[str] = Field(None, max_length=200)
+    house: Optional[str] = Field(None, max_length=20)
+    apt: Optional[str] = Field(None, max_length=20)
+    zip: Optional[str] = Field(None, max_length=20)
+    is_default: bool = False
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+class AddressUpdate(AddressCreate):
+    pass
+
+
+class AddressOut(AddressCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Избранное ───────────────────────────────────────────────────────────────
+
+class FavoriteProductOut(BaseModel):
+    """Краткая карточка товара в избранном (для отображения списка)."""
+    id: int
+    name: str
+    slug: str
+    price: Decimal
+    old_price: Optional[Decimal] = None
+    stock_status: StockStatus
+    primary_image: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FavoriteOut(BaseModel):
+    id: int
+    product_id: int
+    created_at: datetime
+    product: FavoriteProductOut
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Рефералка ───────────────────────────────────────────────────────────────
+
+class ReferralOut(BaseModel):
+    referral_code: str
+    referral_link: str
+    invited_count: int
+
+
+# ─── Бонусы ──────────────────────────────────────────────────────────────────
+
+class BonusTransactionOut(BaseModel):
+    id: int
+    amount: Decimal
+    reason: Optional[str] = None
+    type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BonusOut(BaseModel):
+    balance: Decimal
+    transactions: List[BonusTransactionOut]
+
+
+# ─── Заказы пользователя ─────────────────────────────────────────────────────
+
+class UserOrderListResponse(BaseModel):
+    items: List[OrderOut]
+    total: int
+    page: int
+    pages: int

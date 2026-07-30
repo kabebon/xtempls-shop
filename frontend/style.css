@@ -1830,3 +1830,315 @@ body {
     transform-origin: left top;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ЛИЧНЫЙ КАБИНЕТ (account.html / login.html / register.html / verify-email.html)
+   Переиспользует дизайн-токены и компоненты форм выше (.chk-label/.chk-input).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.auth-wrap {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 72px 20px 40px;
+}
+.auth-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 32px 24px;
+}
+.auth-title {
+    font-family: var(--font-title);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 8px;
+}
+.auth-subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin: 0 0 8px;
+    line-height: 1.45;
+}
+.auth-switch {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-top: 8px;
+}
+.auth-link {
+    color: var(--accent-hover);
+    font-weight: 600;
+    text-decoration: none;
+}
+.auth-link:hover { text-decoration: underline; }
+
+.verify-status { text-align: center; }
+.verify-status .state-icon { font-size: 48px; margin-bottom: 8px; }
+
+/* ── Кабинет: layout ── */
+.account-wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 64px 16px 100px;
+}
+
+.account-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 16px;
+}
+.account-avatar {
+    width: 52px; height: 52px; flex-shrink: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4C5A9E, #2E3359);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    text-transform: uppercase;
+}
+.account-header-info { flex: 1; min-width: 0; }
+.account-name {
+    font-size: 17px; font-weight: 700; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-email {
+    font-size: 13px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-badges { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.account-bonus-chip {
+    background: rgba(255, 221, 45, 0.18);
+    color: #8a6d00;
+    font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+}
+.account-verify-chip {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+}
+.account-verify-chip.verified {
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--success);
+}
+.account-logout-btn {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-muted); padding: 8px; border-radius: 10px;
+    transition: all var(--transition);
+}
+.account-logout-btn:hover { background: var(--accent-dim); color: var(--accent); }
+
+/* ── Табы ── */
+.account-tabs {
+    display: flex; gap: 6px; overflow-x: auto;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 8px;
+    margin-bottom: 16px;
+    scrollbar-width: thin;
+}
+.account-tab {
+    flex-shrink: 0;
+    background: transparent; border: none; cursor: pointer;
+    padding: 10px 16px; border-radius: 10px;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    color: var(--text-secondary);
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+.account-tab:hover { background: var(--accent-dim); color: var(--accent); }
+.account-tab.active {
+    background: linear-gradient(135deg, #4C5A9E, #2E3359);
+    color: #fff;
+}
+
+.account-section { display: none; animation: fadeInPage 0.3s ease; }
+.account-section.active { display: block; }
+.account-h3 {
+    font-size: 16px; font-weight: 700; color: var(--accent);
+    margin: 8px 0 14px;
+}
+
+/* ── Обзор: статы ── */
+.account-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 16px;
+    text-align: center;
+}
+.stat-num {
+    font-size: 30px; font-weight: 800; color: var(--accent);
+    font-family: var(--font-title);
+}
+.stat-label {
+    font-size: 13px; color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ── Заказы ── */
+.order-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.order-card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px;
+}
+.order-num { font-weight: 800; color: var(--accent); font-size: 15px; }
+.order-status-badge {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
+}
+.order-status-badge.status-new { background: var(--accent-dim); color: var(--accent); }
+.order-status-badge.status-in_progress { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+.order-status-badge.status-done { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+.order-status-badge.status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+.order-date { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.order-items { font-size: 14px; color: var(--text-secondary); }
+.order-item-line { padding: 2px 0; }
+.order-card-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+}
+.order-pay { font-size: 13px; font-weight: 600; }
+.status-pay-paid { color: var(--success); }
+.status-pay-pending { color: var(--warning); }
+.status-pay-failed { color: var(--danger); }
+.order-total { font-size: 16px; font-weight: 800; color: var(--accent); }
+
+/* ── Адреса ── */
+.addr-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-top: 12px;
+}
+.addr-card-head { display: flex; justify-content: space-between; align-items: center; }
+.addr-label { font-weight: 700; color: var(--accent); font-size: 14px; }
+.addr-actions { display: flex; gap: 6px; }
+.addr-edit, .addr-del {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 16px; padding: 4px 6px; border-radius: 8px;
+    transition: background var(--transition);
+}
+.addr-edit:hover, .addr-del:hover { background: var(--accent-dim); }
+.addr-line { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+.addr-form-wrap {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-top: 12px;
+}
+.addr-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.addr-row > div { min-width: 0; }
+.addr-form-actions { display: flex; gap: 10px; align-items: center; margin-top: 18px; }
+.btn-ghost {
+    background: transparent; border: 1px solid var(--border); cursor: pointer;
+    padding: 14px 20px; border-radius: 10px; font-family: var(--font);
+    font-size: 15px; font-weight: 600; color: var(--text-secondary);
+}
+.chk-toggle {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; color: var(--text-secondary);
+    padding: 12px 0; cursor: pointer;
+}
+.chk-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* ── Избранное ── */
+.fav-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    text-decoration: none; color: inherit;
+    transition: transform var(--transition);
+}
+.fav-card:hover { transform: translateY(-1px); }
+.fav-img {
+    width: 52px; height: 52px; flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg) center/cover no-repeat;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+}
+.fav-info { flex: 1; min-width: 0; }
+.fav-name {
+    font-size: 14px; font-weight: 600; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fav-price { font-size: 14px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+.fav-del {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 16px; padding: 6px; border-radius: 8px;
+}
+.fav-del:hover { background: var(--accent-dim); }
+
+/* ── Рефералка ── */
+.ref-box {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+}
+.ref-text { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 16px; }
+.ref-link-row { display: flex; gap: 8px; }
+.ref-link-row .chk-input { flex: 1; min-width: 0; }
+.ref-code { margin-top: 12px; font-size: 14px; color: var(--text-muted); }
+.ref-code b { color: var(--accent); font-size: 16px; }
+.ref-stat {
+    text-align: center; margin: 20px 0 8px;
+    padding: 16px; border-radius: 12px;
+    background: var(--accent-dim);
+}
+.ref-stat-num { font-size: 32px; font-weight: 800; color: var(--accent); font-family: var(--font-title); }
+.ref-stat-label { font-size: 13px; color: var(--text-muted); }
+.ref-note { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
+
+/* ── Бонусы ── */
+.bonus-summary {
+    text-align: center; padding: 24px;
+    background: linear-gradient(135deg, #4C5A9E, #2E3359);
+    border-radius: var(--radius);
+    color: #fff; margin-bottom: 18px;
+}
+.bonus-balance-num { font-size: 40px; font-weight: 800; font-family: var(--font-title); }
+.bonus-balance-label { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+.bonus-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+.bonus-reason { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.bonus-date { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.bonus-amount { font-size: 16px; font-weight: 800; }
+.bonus-amount.accrual { color: var(--success); }
+.bonus-amount.spend { color: var(--danger); }
+
+/* ── Адаптив ── */
+@media (max-width: 480px) {
+    .account-wrap { padding: 56px 12px 90px; }
+    .auth-wrap { padding: 60px 14px 32px; }
+    .stat-num { font-size: 24px; }
+    .addr-row { grid-template-columns: 1fr; }
+}
+
+
