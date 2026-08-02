@@ -55,6 +55,15 @@ async def create_order(
     if not data.items and not is_design:
         raise HTTPException(status_code=400, detail="В заказе должен быть хотя бы один товар")
 
+    # Каталожные заказы (с товарами и оплатой) оформляет только залогиненный
+    # пользователь. Дизайн-заявка — это просто форма контакта, она остаётся
+    # анонимной.
+    if not is_design and user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Для оформления заказа войдите в личный кабинет",
+        )
+
     # Legal requirement: the customer must accept the offer & privacy policy.
     if not data.consent_accepted:
         raise HTTPException(

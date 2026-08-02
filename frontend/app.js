@@ -361,6 +361,29 @@ window.submitOrder = async function(e) {
     return;
   }
 
+  // Проверка авторизации: когда пользователь заполнил все поля и переходит
+  // к подтверждению заказа, проверяем авторизацию. Если не залогинен,
+  // сохраняем введённые данные формы и отправляем на страницу входа/регистрации.
+  if (!localStorage.getItem('xtempls_token')) {
+    try {
+      const checkoutData = {
+        name,
+        phone,
+        telegram: telegramRaw,
+        address,
+        comment,
+        consent,
+        promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+        return_url: window.location.pathname + window.location.search,
+        ts: Date.now()
+      };
+      localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
+    } catch (e) {}
+    showToast('Для завершения оформления заказа войдите или зарегистрируйтесь');
+    setTimeout(() => { location.href = '/login.html'; }, 1000);
+    return;
+  }
+
   const btn = document.getElementById('submitOrderBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Отправка...'; }
 
@@ -385,8 +408,6 @@ window.submitOrder = async function(e) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Если пользователь залогинен в личном кабинете — привязываем заказ
-        // к его аккаунту (необязательно: анонимный заказ тоже проходит).
         ...(localStorage.getItem('xtempls_token')
           ? { 'Authorization': `Bearer ${localStorage.getItem('xtempls_token')}` } : {}),
       },
@@ -397,6 +418,26 @@ window.submitOrder = async function(e) {
     // иначе при не-JSON ответе (500 HTML) юзер видел «Ошибка соединения»
     // вместо реальной причины.
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('xtempls_token');
+        try {
+          const checkoutData = {
+            name,
+            phone,
+            telegram: telegramRaw,
+            address,
+            comment,
+            consent,
+            promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+            return_url: window.location.pathname + window.location.search,
+            ts: Date.now()
+          };
+          localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
+        } catch (e) {}
+        showToast('Ваш сеанс истёк. Пожалуйста, войдите снова');
+        setTimeout(() => { location.href = '/login.html'; }, 1200);
+        return;
+      }
       const err = await res.json().catch(() => ({}));
       console.error('Order submit failed:', res.status, err);
       showToast(err.detail || 'Ошибка отправки заказа');
@@ -608,6 +649,54 @@ function initCartUI() {
   injectCartUI();
   reloadCart();
   updateCartBadge();
+  resumeCheckoutIfRequested();
+}
+
+// Возврат к оформлению после входа или регистрации. После успешного входа
+// пользователя возвращают обратно с ?checkout=1. Открываем форму и восстанавливаем
+// все поля, которые пользователь заполнил до авторизации.
+function resumeCheckoutIfRequested() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('checkout') !== '1') return;
+  // Чистим параметр из URL, чтобы при перезагрузке форма не открывалась снова.
+  params.delete('checkout');
+  const clean = params.toString();
+  history.replaceState(null, '', window.location.pathname + (clean ? '?' + clean : ''));
+  // Возобновляем только если залогинен и корзина не пуста.
+  if (!localStorage.getItem('xtempls_token') || cart.length === 0) return;
+  openCheckout();
+
+  // Восстанавливаем сохранённые данные полей формы оформления заказа
+  const raw = localStorage.getItem('xtempls_checkout_intent');
+  if (raw) {
+    try {
+      const intent = JSON.parse(raw);
+      const fresh = intent && intent.ts && (Date.now() - intent.ts) < 24 * 3600 * 1000;
+      if (fresh) {
+        const nameEl = document.getElementById('chkName');
+        const phoneEl = document.getElementById('chkPhone');
+        const tgEl = document.getElementById('chkTelegram');
+        const addrEl = document.getElementById('chkAddress');
+        const commEl = document.getElementById('chkComment');
+        const consEl = document.getElementById('chkConsent');
+        const promoEl = document.getElementById('chkPromo');
+
+        if (nameEl && intent.name) nameEl.value = intent.name;
+        if (phoneEl && intent.phone) phoneEl.value = intent.phone;
+        if (tgEl && intent.telegram !== undefined) tgEl.value = intent.telegram || '';
+        if (addrEl && intent.address) addrEl.value = intent.address;
+        if (commEl && intent.comment !== undefined) commEl.value = intent.comment || '';
+        if (consEl && intent.consent !== undefined) consEl.checked = !!intent.consent;
+        if (promoEl && intent.promo) {
+          promoEl.value = intent.promo;
+          setTimeout(() => {
+            if (typeof window.applyPromo === 'function') window.applyPromo();
+          }, 100);
+        }
+      }
+    } catch (e) {}
+    localStorage.removeItem('xtempls_checkout_intent');
+  }
 }
 
 if (document.body) {

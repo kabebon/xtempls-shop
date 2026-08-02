@@ -85,6 +85,29 @@ if (nameInput && tg?.initDataUnsafe?.user) {
   if (ref) refInput.value = ref;
 })();
 
+// Подсказка на странице входа или регистрации, если пользователь пришёл из оформления заказа:
+// объясняем, зачем нужна авторизация и что корзина и введённые данные сохранены.
+(() => {
+  const sub = document.querySelector('.auth-subtitle');
+  const loginFormEl = document.getElementById('loginForm');
+  const registerFormEl = document.getElementById('registerForm');
+  if (!sub || (!loginFormEl && !registerFormEl)) return;
+  let intent = null;
+  try { intent = JSON.parse(localStorage.getItem('xtempls_checkout_intent') || 'null'); } catch (e) {}
+  const fresh = intent && intent.ts && (Date.now() - intent.ts) < 24 * 3600 * 1000;
+  if (fresh) {
+    if (loginFormEl) {
+      sub.textContent = 'Войдите, чтобы завершить оформление заказа — ваша корзина и данные доставки сохранены.';
+    } else if (registerFormEl) {
+      sub.textContent = 'Зарегистрируйтесь, чтобы завершить оформление заказа — ваша корзина и данные доставки сохранены.';
+      const nameIn = document.getElementById('name');
+      const phoneIn = document.getElementById('phone');
+      if (nameIn && intent.name) nameIn.value = intent.name;
+      if (phoneIn && intent.phone) phoneIn.value = intent.phone;
+    }
+  }
+})();
+
 // ─── Регистрация ────────────────────────────────────────────────────────────
 const registerForm = document.getElementById('registerForm');
 if (registerForm) {
@@ -139,6 +162,25 @@ if (loginForm) {
         return;
       }
       setToken(data.access_token);
+      // Если пользователь пришёл к входу из оформления заказа — возвращаем его
+      // на ту страницу, откуда он пришёл, с параметром ?checkout=1.
+      const raw = localStorage.getItem('xtempls_checkout_intent');
+      if (raw) {
+        try {
+          const intent = JSON.parse(raw);
+          const fresh = intent && intent.ts && (Date.now() - intent.ts) < 24 * 3600 * 1000;
+          if (fresh) {
+            const returnUrl = intent.return_url || '/catalog.html';
+            const sep = returnUrl.includes('?') ? '&' : '?';
+            location.href = `${returnUrl}${sep}checkout=1`;
+            return;
+          } else {
+            localStorage.removeItem('xtempls_checkout_intent');
+          }
+        } catch (e) {
+          localStorage.removeItem('xtempls_checkout_intent');
+        }
+      }
       location.href = '/account.html';
     } catch (err) {
       showToast('Не удалось связаться с сервером');
