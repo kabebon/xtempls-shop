@@ -1872,6 +1872,43 @@ body {
     text-decoration: none;
 }
 .auth-link:hover { text-decoration: underline; }
+/* Кнопка-CTA на градиентном фоне (например «Войти в личный кабинет» на
+   странице подтверждения email) — текст должен быть ярким белым, иначе он
+   теряется на синем градиенте. Перебираем наследование !important. */
+.checkout-submit-btn.auth-link,
+a.checkout-submit-btn.auth-link {
+    color: #ffffff !important;
+}
+.checkout-submit-btn.auth-link:hover {
+    color: #ffffff !important;
+    text-decoration: none;
+}
+
+/* Кнопка «Домой» — рядом с «Назад», фиксированная сверху слева */
+.home-btn {
+    position: fixed;
+    top: 15px;
+    left: 72px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    color: #000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: none !important;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all var(--transition);
+    padding: 0;
+    text-decoration: none !important;
+}
+.home-btn:hover {
+    transform: scale(1.05);
+    color: var(--accent) !important;
+}
 
 .verify-status { text-align: center; }
 .verify-status .state-icon { font-size: 48px; margin-bottom: 8px; }
@@ -1937,13 +1974,14 @@ body {
 
 /* ── Табы ── */
 .account-tabs {
-    display: flex; gap: 6px; overflow-x: auto;
+    /* Переносим вместо скролла — 8 вкладок комфортно укладываются в 2 ряда,
+       листать горизонтально неудобно на мобильном. */
+    display: flex; flex-wrap: wrap; gap: 6px;
     background: var(--bg-card);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     padding: 8px;
     margin-bottom: 16px;
-    scrollbar-width: thin;
 }
 .account-tab {
     flex-shrink: 0;
