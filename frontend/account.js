@@ -133,7 +133,11 @@ if (loginForm) {
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { showToast(data.detail || 'Неверный email или пароль'); return; }
+      if (!res.ok) {
+        // 403 «не подтверждён» — показываем дольше, это важная инструкция.
+        showToast(data.detail || 'Неверный email или пароль', res.status === 403 ? 5000 : 2800);
+        return;
+      }
       setToken(data.access_token);
       location.href = '/account.html';
     } catch (err) {

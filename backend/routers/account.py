@@ -92,6 +92,20 @@ async def login(data: UserLoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Аккаунт отключён")
+    if not user.is_verified:
+        # Жёсткая проверка: вход только для подтверждённых аккаунтов.
+        # Перешлём письмо повторно, чтобы пользователю не пришлось искать ссылку.
+        try:
+            token = crud._generate_token()
+            await crud.update_user(db, user.id, {"verification_token": token})
+            user = await crud.get_user(db, user.id)
+            await send_verification_email(user)
+        except Exception:
+            logger.exception("Не удалось отправить письмо подтверждения для %s", user.email)
+        raise HTTPException(
+            status_code=403,
+            detail="Email не подтверждён. Мы отправили письмо со ссылкой подтверждения повторно — проверьте почту.",
+        )
     token = create_user_token(user.id)
     return {
         "access_token": token,
