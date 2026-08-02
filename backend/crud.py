@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, String
@@ -507,7 +508,6 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
         price = product.price
         disc_amount = None
         if discount_percent:
-            from decimal import Decimal
             disc_amount = (price * Decimal(discount_percent) / Decimal(100)).quantize(Decimal('0.01'))
             price = price - disc_amount
         item = OrderItem(
@@ -953,8 +953,7 @@ async def add_bonus_transaction(db: AsyncSession, user_id: int, amount,
     заказа). Пересчёт баланса держим в одном месте, чтобы не рассинхронизировать
     balance и сумму транзакций.
     """
-    from decimal import Decimal as _D
-    amount = _D(amount)
+    amount = Decimal(amount)
     tx = BonusTransaction(user_id=user_id, amount=amount, reason=reason, type=tx_type)
     db.add(tx)
     # Корректируем баланс: начисление — плюс, списание — минус.
