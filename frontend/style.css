@@ -1973,24 +1973,34 @@ a.checkout-submit-btn.auth-link {
 .account-logout-btn:hover { background: var(--accent-dim); color: var(--accent); }
 
 /* ── Табы ── */
+/* ── Раскладка: вертикальный сайдбар слева + контент справа ── */
+.account-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+.account-content {
+    min-width: 0; /* чтобы grid-ячейка не раздувала дочерние элементы */
+}
+
 .account-tabs {
-    /* Переносим вместо скролла — 8 вкладок комфортно укладываются в 2 ряда,
-       листать горизонтально неудобно на мобильном. */
-    display: flex; flex-wrap: wrap; gap: 6px;
+    /* Вертикальное меню-столбик. На мобильном (ниже) станет горизонтальным. */
+    display: flex; flex-direction: column; gap: 4px;
     background: var(--bg-card);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    padding: 8px;
-    margin-bottom: 16px;
+    padding: 10px;
+    position: sticky; top: 15px;
 }
 .account-tab {
-    flex-shrink: 0;
     background: transparent; border: none; cursor: pointer;
-    padding: 10px 16px; border-radius: 10px;
+    padding: 12px 14px; border-radius: 10px;
     font-family: var(--font); font-size: 14px; font-weight: 600;
     color: var(--text-secondary);
     transition: all var(--transition);
-    white-space: nowrap;
+    text-align: left;
+    display: flex; align-items: center; gap: 8px;
 }
 .account-tab:hover { background: var(--accent-dim); color: var(--accent); }
 .account-tab.active {
@@ -2172,6 +2182,23 @@ a.checkout-submit-btn.auth-link {
 .bonus-amount.spend { color: var(--danger); }
 
 /* ── Адаптив ── */
+/* На планшете/телефоне вертикальный сайдбар уходит наверх как горизонтальная
+   лента — иначе 220px съедят весь узкий экран. */
+@media (max-width: 768px) {
+    .account-layout { grid-template-columns: 1fr; }
+    .account-tabs {
+        position: static;
+        flex-direction: row;
+        overflow-x: auto;
+        padding: 8px;
+        scrollbar-width: thin;
+    }
+    .account-tab {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+}
+
 @media (max-width: 480px) {
     .account-wrap { padding: 56px 12px 90px; }
     .auth-wrap { padding: 60px 14px 32px; }

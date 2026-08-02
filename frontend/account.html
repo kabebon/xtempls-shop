@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.0.13" />
+  <link rel="stylesheet" href="style.css?v=1.0.14" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -46,17 +46,23 @@
     </button>
   </div>
 
-  <!-- Табы -->
+  <!-- Layout: вертикальное меню слева + контент справа -->
+  <div class="account-layout">
+
+  <!-- Табы (вертикальный сайдбар на десктопе) -->
   <nav class="account-tabs" id="accountTabs">
-    <button class="account-tab active" data-tab="overview">Обзор</button>
-    <button class="account-tab" data-tab="orders">Заказы</button>
-    <button class="account-tab" data-tab="profile">Профиль</button>
-    <button class="account-tab" data-tab="addresses">Адреса</button>
-    <button class="account-tab" data-tab="favorites">Избранное</button>
-    <button class="account-tab" data-tab="referral">Рефералка</button>
-    <button class="account-tab" data-tab="bonuses">Бонусы</button>
-    <button class="account-tab" data-tab="notifications">Уведомления</button>
+    <button class="account-tab active" data-tab="overview">📊 Обзор</button>
+    <button class="account-tab" data-tab="orders">📦 Заказы</button>
+    <button class="account-tab" data-tab="profile">👤 Профиль</button>
+    <button class="account-tab" data-tab="addresses">📍 Адреса</button>
+    <button class="account-tab" data-tab="favorites">❤️ Избранное</button>
+    <button class="account-tab" data-tab="referral">🎁 Рефералка</button>
+    <button class="account-tab" data-tab="bonuses">💰 Бонусы</button>
+    <button class="account-tab" data-tab="notifications">🔔 Уведомления</button>
   </nav>
+
+  <!-- Контент всех секций -->
+  <div class="account-content">
 
   <!-- Контейнеры секций -->
   <section class="account-section active" id="tab-overview">
@@ -178,11 +184,14 @@
     </form>
   </section>
 
+  </div><!-- /.account-content -->
+  </div><!-- /.account-layout -->
+
 </div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="account.js?v=1.0.13"></script>
+<script src="account.js?v=1.0.14"></script>
 </body>
 </html>
