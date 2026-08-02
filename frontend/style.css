@@ -2056,6 +2056,16 @@ a.checkout-submit-btn.auth-link {
 .order-date { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
 .order-items { font-size: 14px; color: var(--text-secondary); }
 .order-item-line { padding: 2px 0; }
+.order-meta {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+.order-meta-line { word-break: break-word; }
 .order-card-foot {
     display: flex; justify-content: space-between; align-items: center;
     margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);

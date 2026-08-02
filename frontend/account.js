@@ -240,6 +240,18 @@ if (logoutBtn) logoutBtn.addEventListener('click', () => {
 });
 
 // ─── Табы ───────────────────────────────────────────────────────────────────
+// Ленивая загрузка данных вкладки при первом открытии (чтобы не дёргать все
+// API разом при входе). Ключ — data-tab, значение — функция загрузки.
+const _tabLoaders = {
+  orders: loadOrders,
+  favorites: loadFavorites,
+  referral: setupReferral,
+  bonuses: setupBonuses,
+  notifications: setupNotifications,
+  addresses: loadAddresses,
+};
+const _tabLoaded = new Set();
+
 function setupTabs() {
   const tabs = document.querySelectorAll('.account-tab');
   tabs.forEach(tab => {
@@ -247,7 +259,13 @@ function setupTabs() {
       document.querySelectorAll('.account-tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.account-section').forEach(s => s.classList.remove('active'));
       tab.classList.add('active');
-      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      const name = tab.dataset.tab;
+      document.getElementById('tab-' + name).classList.add('active');
+      // Подгружаем данные вкладки при первом открытии.
+      if (_tabLoaders[name] && !_tabLoaded.has(name)) {
+        _tabLoaded.add(name);
+        _tabLoaders[name]();
+      }
     });
   });
 }
@@ -296,6 +314,17 @@ function orderCard(o) {
   const itemsHtml = o.items.map(it =>
     `<div class="order-item-line">${escapeHtml(it.product_name)}${it.size ? ' · ' + escapeHtml(it.size) : ''} ×${it.quantity} — ${fmtPrice(it.product_price * it.quantity)}</div>`
   ).join('');
+
+  // Блок доставки/контактов — показываем, если есть хоть что-то.
+  const meta = [];
+  if (o.delivery_address) meta.push(`<div class="order-meta-line">📦 ${escapeHtml(o.delivery_address)}</div>`);
+  const contactParts = [];
+  if (o.customer_phone) contactParts.push(`📞 ${escapeHtml(o.customer_phone)}`);
+  if (o.customer_telegram) contactParts.push(`💬 @${escapeHtml(String(o.customer_telegram).replace('@', ''))}`);
+  if (contactParts.length) meta.push(`<div class="order-meta-line">${contactParts.join(' &nbsp; ')}</div>`);
+  if (o.comment) meta.push(`<div class="order-meta-line">📝 ${escapeHtml(o.comment)}</div>`);
+  const metaHtml = meta.length ? `<div class="order-meta">${meta.join('')}</div>` : '';
+
   return `
     <div class="order-card">
       <div class="order-card-head">
@@ -304,6 +333,7 @@ function orderCard(o) {
       </div>
       <div class="order-date">${new Date(o.created_at).toLocaleString('ru-RU')}</div>
       <div class="order-items">${itemsHtml}</div>
+      ${metaHtml}
       <div class="order-card-foot">
         <span class="order-pay status-pay-${o.payment_status}">${PAYMENT_LABELS[o.payment_status] || o.payment_status}</span>
         <span class="order-total">${fmtPrice(total)}</span>
