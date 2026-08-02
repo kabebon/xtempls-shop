@@ -101,17 +101,22 @@ async def _smtp_send(to: str, subject: str, html_body: str,
     msg.add_alternative(html_body, subtype="html")
 
     last_error = None
+    # Два режима TLS:
+    #   • порт 465 — implicit TLS (сразу TLS-соединение, без STARTTLS)
+    #   • порт 587/25 — plain → STARTTLS в ходе рукопожатия (aiosmtplib сам
+    #     вызовет STARTTLS при start_tls=True, ручной starttls() не нужен —
+    #     иначе падает "Connection already using TLS", как было с Яндексом).
+    use_implicit_tls = settings.smtp_port == 465
+    smtp = SMTP(
+        hostname=settings.smtp_host,
+        port=settings.smtp_port,
+        use_tls=use_implicit_tls,
+        start_tls=(settings.smtp_use_tls and not use_implicit_tls),
+        timeout=30,
+    )
     for attempt in range(3):
         try:
-            smtp = SMTP(
-                hostname=settings.smtp_host,
-                port=settings.smtp_port,
-                use_tls=False,            # STARTTLS ниже (для порта 587)
-                timeout=30,
-            )
             await smtp.connect()
-            if settings.smtp_use_tls:
-                await smtp.starttls()
             if settings.smtp_user and settings.smtp_password:
                 await smtp.login(settings.smtp_user, settings.smtp_password)
             await smtp.send_message(msg)
