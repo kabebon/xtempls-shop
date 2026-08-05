@@ -37,6 +37,8 @@ credentials.json
 *.tmp
 *.dump
 *.sql.gz
+backups/
+logs/
 
 # Локальные одноразовые скрипты (хелперы отладки/экспериментов)
 check_db.py
