@@ -1,15 +1,15 @@
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, delete, String
+from sqlalchemy import select, func, update, delete, String, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from models import (
     Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser,
-    Order, OrderItem, OrderStatus, PromoCode,
+    Order, OrderItem, OrderStatus, OrderType, PaymentStatus, PromoCode,
     User, Address, Favorite, BonusTransaction, BonusTxType,
 )
 from schemas import (
@@ -580,6 +580,40 @@ async def update_order_note(db: AsyncSession, order_id: int,
     return await get_order(db, order_id)
 
 
+async def update_order_admin(db: AsyncSession, order_id: int, data) -> Optional[Order]:
+    """Полное редактирование заказа из админки. Принимает схему OrderAdminUpdate,
+    применяет только переданные поля (exclude_unset). Статусы валидируются через
+    enum'ы. Возвращает обновлённый заказ или None, если заказ не найден."""
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        return await get_order(db, order_id)
+
+    # Валидируем значения статусов, если они переданы
+    if "status" in payload and payload["status"] is not None:
+        try:
+            payload["status"] = OrderStatus(payload["status"])
+        except ValueError:
+            raise ValueError(f"Неверный status: {payload['status']}")
+    if "payment_status" in payload and payload["payment_status"] is not None:
+        try:
+            payload["payment_status"] = PaymentStatus(payload["payment_status"])
+        except ValueError:
+            raise ValueError(f"Неверный payment_status: {payload['payment_status']}")
+
+    # Тримим строки
+    for k in ("customer_name", "customer_phone", "customer_telegram"):
+        if k in payload and payload[k]:
+            payload[k] = str(payload[k]).strip()
+
+    result = await db.execute(
+        update(Order).where(Order.id == order_id).values(**payload)
+    )
+    if result.rowcount == 0:
+        return None
+    await db.commit()
+    return await get_order(db, order_id)
+
+
 async def delete_order(db: AsyncSession, order_id: int) -> bool:
     """Soft-delete: помечаем заказ как удалённый (попадает в корзину админки).
     Возвращает True если заказ существовал и был удалён."""
@@ -801,6 +835,95 @@ async def change_user_password(db: AsyncSession, user_id: int, new_password: str
     await db.commit()
 
 
+# ─── Админка: заказчики (User) ───────────────────────────────────────────────
+
+async def _customer_orders_count(db: AsyncSession, user_id: int) -> int:
+    """Кол-во «видимых» заказов пользователя (тот же фильтр, что в ЛК):
+    дизайн-заказы + оплаченные + обработанные. Брошенные pending не считаем."""
+    visible = or_(
+        Order.order_type == OrderType.design,
+        Order.payment_status == PaymentStatus.paid,
+        Order.status != OrderStatus.new,
+    )
+    result = await db.execute(
+        select(func.count(Order.id)).where(
+            Order.user_id == user_id, Order.is_deleted == False, visible
+        )
+    )
+    return result.scalar() or 0
+
+
+async def get_customers(db: AsyncSession, page: int = 1, per_page: int = 20,
+                        search: Optional[str] = None) -> dict:
+    """Список заказчиков (User) для админки. Поиск по email/имени/телефону.
+    Возвращает total/pages для пагинации."""
+    q = select(User)
+    if search:
+        like = f"%{search}%"
+        q = q.where(
+            or_(User.email.ilike(like), User.name.ilike(like), User.phone.ilike(like))
+        )
+    q = q.order_by(User.created_at.desc())
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar() or 0
+    users = (await db.execute(q.offset((page - 1) * per_page).limit(per_page))).scalars().all()
+
+    items = []
+    for u in users:
+        cnt = await _customer_orders_count(db, u.id)
+        items.append({
+            "id": u.id, "email": u.email, "name": u.name, "phone": u.phone,
+            "is_verified": u.is_verified, "is_active": u.is_active,
+            "bonus_balance": u.bonus_balance, "referral_code": u.referral_code,
+            "created_at": u.created_at, "orders_count": cnt,
+        })
+    return {
+        "items": items, "total": total, "page": page,
+        "pages": max(1, math.ceil(total / per_page)),
+    }
+
+
+async def get_customer(db: AsyncSession, user_id: int) -> Optional[dict]:
+    u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not u:
+        return None
+    cnt = await _customer_orders_count(db, u.id)
+    return {
+        "id": u.id, "email": u.email, "name": u.name, "phone": u.phone,
+        "is_verified": u.is_verified, "is_active": u.is_active,
+        "bonus_balance": u.bonus_balance, "referral_code": u.referral_code,
+        "created_at": u.created_at, "orders_count": cnt,
+    }
+
+
+async def update_customer(db: AsyncSession, user_id: int, data) -> Optional[User]:
+    """Ручное редактирование заказчика из админки. apply только переданные поля."""
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        return await db.get(User, user_id)
+    if "name" in payload and payload["name"] is not None:
+        payload["name"] = str(payload["name"]).strip() or None
+    if "phone" in payload and payload["phone"] is not None:
+        payload["phone"] = str(payload["phone"]).strip() or None
+    result = await db.execute(update(User).where(User.id == user_id).values(**payload))
+    if result.rowcount == 0:
+        return None
+    await db.commit()
+    return await db.get(User, user_id)
+
+
+async def deactivate_customer(db: AsyncSession, user_id: int) -> bool:
+    """«Удаление» заказчика — безопасно деактивируем аккаунт (is_active=False),
+    заказы и история сохраняются. Hard-delete не делаем, чтобы не ломать ссылки
+    заказов (Order.user_id ON DELETE SET NULL) и аудит."""
+    result = await db.execute(
+        update(User).where(User.id == user_id).values(is_active=False)
+    )
+    if result.rowcount == 0:
+        return False
+    await db.commit()
+    return True
+
+
 # ─── Адреса ──────────────────────────────────────────────────────────────────
 
 async def list_addresses(db: AsyncSession, user_id: int) -> list[Address]:
@@ -971,10 +1094,21 @@ async def add_bonus_transaction(db: AsyncSession, user_id: int, amount,
 
 async def get_user_orders(db: AsyncSession, user_id: int,
                           page: int = 1, per_page: int = 10) -> dict:
+    # В личном кабинете показываем только «реальные» заказы:
+    #   • дизайн-заказы (order_type=design) — всегда (оплата не требуется);
+    #   • каталог-заказы, которые оплачены (paid) ИЛИ уже обработаны админом
+    #     (status != new — in_progress/done/cancelled).
+    # «Брошенные» корзины (pending/failed + status=new) — не показываем и не считаем,
+    # иначе счётчик «заказов» раздувается неоплаченными попытками на ЮМани.
+    visible = or_(
+        Order.order_type == OrderType.design,
+        Order.payment_status == PaymentStatus.paid,
+        Order.status != OrderStatus.new,
+    )
     q = (
         select(Order)
         .options(selectinload(Order.items))
-        .where(Order.user_id == user_id, Order.is_deleted == False)
+        .where(Order.user_id == user_id, Order.is_deleted == False, visible)
         .order_by(Order.created_at.desc())
     )
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
@@ -990,9 +1124,41 @@ async def get_user_orders(db: AsyncSession, user_id: int,
 
 
 async def get_user_order(db: AsyncSession, user_id: int, order_id: int) -> Optional[Order]:
+    visible = or_(
+        Order.order_type == OrderType.design,
+        Order.payment_status == PaymentStatus.paid,
+        Order.status != OrderStatus.new,
+    )
     result = await db.execute(
         select(Order)
         .options(selectinload(Order.items))
-        .where(Order.id == order_id, Order.user_id == user_id, Order.is_deleted == False)
+        .where(Order.id == order_id, Order.user_id == user_id,
+               Order.is_deleted == False, visible)
     )
     return result.scalar_one_or_none()
+
+
+async def cancel_stale_pending_orders(db: AsyncSession,
+                                       older_than_hours: int = 24) -> int:
+    """Автоотмена «брошенных» заказов: каталог-заказам, которые висят в
+    payment_status=pending + status=new дольше older_than часов, выставляем
+    payment_status=failed + status=cancelled.
+
+    Возвращает количество отменённых заказов. Запускается фоновой задачей
+    из main.lifespan, чтобы pending-заказы не копились вечно (они уже не
+    видны в ЛК благодаря фильтру выше, но в админке и БД их нужно подчищать).
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
+    result = await db.execute(
+        update(Order)
+        .where(
+            Order.payment_status == PaymentStatus.pending,
+            Order.status == OrderStatus.new,
+            Order.is_deleted == False,
+            Order.created_at < cutoff,
+        )
+        .values(payment_status=PaymentStatus.failed, status=OrderStatus.cancelled)
+    )
+    if result.rowcount:
+        await db.commit()
+    return result.rowcount

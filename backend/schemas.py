@@ -380,6 +380,21 @@ class OrderNoteUpdate(BaseModel):
     admin_note: Optional[str] = Field(None, max_length=5000)
 
 
+class OrderAdminUpdate(BaseModel):
+    """Полное редактирование заказа из админки: контакты, адрес, комментарий,
+    сумма, статусы. Состав (OrderItem) намеренно не редактируется — менять
+    позиции задним числом рискованно. Все поля optional."""
+    customer_name: Optional[str] = Field(None, min_length=1, max_length=150)
+    customer_phone: Optional[str] = Field(None, max_length=30)
+    customer_telegram: Optional[str] = Field(None, max_length=100)
+    delivery_address: Optional[str] = Field(None, max_length=2000)
+    comment: Optional[str] = Field(None, max_length=5000)
+    amount: Optional[Decimal] = Field(None, ge=0)
+    status: Optional[str] = None  # new | in_progress | done | cancelled
+    payment_status: Optional[str] = None  # pending | paid | failed
+    admin_note: Optional[str] = Field(None, max_length=5000)
+
+
 class OrderListResponse(BaseModel):
     items: List[OrderOut]
     total: int
@@ -481,6 +496,44 @@ class UserUpdate(BaseModel):
     @classmethod
     def _validate_phone(cls, v):
         return _normalize_phone(v)
+
+
+# ─── Админка: заказчики (User) ───────────────────────────────────────────────
+
+class CustomerOut(BaseModel):
+    """Карточка заказчика для списка/детали в админке.
+    Содержит агрегат по заказам, чтобы не делать лишних запросов на фронте."""
+    id: int
+    email: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_verified: bool
+    is_active: bool
+    bonus_balance: Decimal = Decimal("0")
+    referral_code: str
+    created_at: datetime
+    orders_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class CustomerUpdate(BaseModel):
+    """Ручное редактирование заказчика из админки. email и пароль не меняем
+    (это опасно менять задним числом без подтверждения). Бонусы, верификация,
+    активность и контакты — ок."""
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    is_verified: Optional[bool] = None
+    is_active: Optional[bool] = None
+    bonus_balance: Optional[Decimal] = Field(None, ge=0)
+
+
+class CustomerListResponse(BaseModel):
+    items: List[CustomerOut]
+    total: int
+    page: int
+    pages: int
 
 
 class ChangePasswordRequest(BaseModel):

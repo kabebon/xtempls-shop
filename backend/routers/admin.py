@@ -18,9 +18,10 @@ from schemas import (
     ProductCreate, ProductUpdate, ProductOut, ProductListResponse,
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
     AdminUserCreate, AdminUserUpdate,
-    OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, BroadcastRequest,
+    OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, OrderAdminUpdate, BroadcastRequest,
     PromoCodeCreate, PromoCodeOut, ImageReorderRequest,
     SubscriberOut, SubscriberListResponse,
+    CustomerOut, CustomerUpdate, CustomerListResponse,
 )
 from models import AdminUser
 from notifications import broadcast as tg_broadcast, get_broadcast_status
@@ -378,6 +379,25 @@ async def admin_update_order_note(
     return order
 
 
+@router.put("/admin/orders/{order_id}", response_model=OrderOut)
+async def admin_update_order(
+    order_id: int,
+    data: OrderAdminUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Полное редактирование заказа: контакты, адрес, комментарий, сумма,
+    статусы (status/payment_status), заметка менеджера. Состав (OrderItem)
+    не меняется. Старые эндпоинты /status и /note оставлены для совместимости."""
+    try:
+        order = await crud.update_order_admin(db, order_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    return order
+
+
 @router.delete("/admin/orders/{order_id}", status_code=204)
 async def admin_delete_order(
     order_id: int,
@@ -402,6 +422,62 @@ async def admin_restore_order(
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден в корзине")
     return order
+
+
+# ── Admin: Заказчики (User) ───────────────────────────────────────────
+
+@router.get("/admin/customers", response_model=CustomerListResponse)
+async def admin_list_customers(
+    page: int = 1,
+    per_page: int = 20,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Список заказчиков (зарегистрированных аккаунтов личного кабинета).
+    Поиск по email/имени/телефону."""
+    return await crud.get_customers(db, page=page, per_page=per_page, search=search)
+
+
+@router.get("/admin/customers/{user_id}", response_model=CustomerOut)
+async def admin_get_customer(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    customer = await crud.get_customer(db, user_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    return customer
+
+
+@router.put("/admin/customers/{user_id}", response_model=CustomerOut)
+async def admin_update_customer(
+    user_id: int,
+    data: CustomerUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Ручное редактирование заказчика: контакты, верификация, активность,
+    бонусы. email и пароль не меняются."""
+    user = await crud.update_customer(db, user_id, data)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    customer = await crud.get_customer(db, user_id)
+    return customer
+
+
+@router.delete("/admin/customers/{user_id}", status_code=204)
+async def admin_delete_customer(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Деактивация заказчика (is_active=False). Hard-delete не делаем — заказы и
+    история сохраняются, аккаунт просто не может войти."""
+    ok = await crud.deactivate_customer(db, user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
 
 
 # ── Admin: Broadcast ─────────────────────────────────────────────────

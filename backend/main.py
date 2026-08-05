@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 
 from database import engine, settings, AsyncSessionLocal
@@ -15,6 +16,22 @@ from routers import account as account_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _stale_orders_loop():
+    """Фоновая задача: раз в час отменяет «брошенные» заказы (pending + new,
+    не оплачены дольше 24 часов). Не считается в личном кабинете и не копится
+    в админке. См. crud.cancel_stale_pending_orders."""
+    await asyncio.sleep(60)  # первая задержка — чтобы старт прошёл спокойно
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                cancelled = await crud.cancel_stale_pending_orders(db, older_than_hours=24)
+            if cancelled:
+                logger.info("♻️ Автоотмена: отменено %s брошенных заказов (pending>24ч)", cancelled)
+        except Exception:
+            logger.exception("Ошибка в _stale_orders_loop")
+        await asyncio.sleep(3600)
 
 
 async def seed_admin():
@@ -44,7 +61,13 @@ async def seed_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await seed_admin()
+    stale_task = asyncio.create_task(_stale_orders_loop())
     yield
+    stale_task.cancel()
+    try:
+        await stale_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 
