@@ -60,6 +60,14 @@
       </svg>
       Подписчики
     </a>
+    <a class="nav-item" href="customers.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 11l-3-3m0 0l-3 3m3-3v6"/>
+      </svg>
+      Заказчики
+    </a>
     <a class="nav-item" href="users.html">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
@@ -145,7 +153,8 @@
     </div>
     <div class="modal-body" id="orderModalBody"></div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeOrderModal()">Закрыть</button>
+      <button class="btn btn-secondary" id="orderCancelBtn" onclick="closeOrderModal()">Закрыть</button>
+      <button class="btn btn-primary" id="orderEditBtn" onclick="editOrder()">✏️ Редактировать</button>
     </div>
   </div>
 </div>
@@ -190,6 +199,7 @@
   let totalPages = 1;
   let currentStatus = '';
   let currentOrderId = null;
+  let currentOrder = null;  // последний загруженный заказ для режима редактирования
 
   const STATUS_MAP = {
     'new':         ['badge-red',    'Новый'],
@@ -348,6 +358,7 @@
 
     // Сохраняем id для сохранения заметок
     currentOrderId = o.id;
+    currentOrder = o;
 
     document.getElementById('orderModalTitle').textContent = `Заказ #${o.id}`;
     document.getElementById('orderModalBody').innerHTML = `
@@ -407,6 +418,104 @@
     `;
     document.getElementById('orderModal').classList.add('open');
   };
+
+  // ── Режим редактирования заказа ──────────────────────────────────────────
+  // Превращает модалку просмотра в форму с полями (контакты, адрес, комментарий,
+  // сумма, статусы). Состав (items) не редактируется. Сохранение через PUT.
+  window.editOrder = function() {
+    const o = currentOrder;
+    if (!o) return;
+    const esc = (v) => String(v ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    document.getElementById('orderModalTitle').textContent = `Редактирование заказа #${o.id}`;
+    document.getElementById('orderModalBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Покупатель</label>
+          <input class="form-input" id="ed_name" value="${esc(o.customer_name)}" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Телефон</label>
+          <input class="form-input" id="ed_phone" value="${esc(o.customer_phone || '')}" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Telegram</label>
+          <input class="form-input" id="ed_tg" value="${esc(o.customer_telegram || '')}" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Сумма, ₽</label>
+          <input class="form-input" id="ed_amount" type="number" step="0.01" min="0" value="${esc(o.amount ?? '')}" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Статус заказа</label>
+          <select class="form-input" id="ed_status" style="width:100%;margin-top:4px;">
+            ${['new','in_progress','done','cancelled'].map(s => `<option value="${s}" ${o.status===s?'selected':''}>${(STATUS_MAP[s]||[,''])[1]||s}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Оплата</label>
+          <select class="form-input" id="ed_payment" style="width:100%;margin-top:4px;">
+            ${['pending','paid','failed'].map(s => `<option value="${s}" ${o.payment_status===s?'selected':''}>${(PAYMENT_STATUS_MAP[s]||[,''])[1]||s}</option>`).join('')}
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Адрес доставки</label>
+          <input class="form-input" id="ed_address" value="${esc(o.delivery_address || '')}" style="width:100%;margin-top:4px;">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Комментарий</label>
+          <textarea class="form-input" id="ed_comment" rows="2" style="width:100%;margin-top:4px;">${esc(o.comment || '')}</textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Заметка менеджера</label>
+          <textarea class="form-input" id="ed_note" rows="2" style="width:100%;margin-top:4px;">${esc(o.admin_note || '')}</textarea>
+        </div>
+      </div>
+    `;
+    // Меняем кнопки футера на «Отмена» / «Сохранить»
+    document.getElementById('orderEditBtn').style.display = 'none';
+    document.getElementById('orderCancelBtn').textContent = 'Отмена';
+    document.getElementById('orderCancelBtn').onclick = () => viewOrder(o.id);
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.id = 'orderSaveBtn';
+    saveBtn.textContent = '💾 Сохранить';
+    saveBtn.onclick = () => saveOrderEdit(o.id);
+    document.querySelector('#orderModal .modal-footer').insertBefore(saveBtn, document.getElementById('orderEditBtn'));
+  };
+
+  window.saveOrderEdit = async function(id) {
+    const num = (v) => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+    const body = {
+      customer_name: document.getElementById('ed_name').value.trim() || undefined,
+      customer_phone: document.getElementById('ed_phone').value.trim() || undefined,
+      customer_telegram: document.getElementById('ed_tg').value.trim() || undefined,
+      delivery_address: document.getElementById('ed_address').value.trim() || undefined,
+      comment: document.getElementById('ed_comment').value.trim() || undefined,
+      admin_note: document.getElementById('ed_note').value.trim() || undefined,
+      amount: num(document.getElementById('ed_amount').value),
+      status: document.getElementById('ed_status').value,
+      payment_status: document.getElementById('ed_payment').value,
+    };
+    const res = await apiFetch(`/api/admin/orders/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.detail || 'Ошибка сохранения'); return; }
+    showToast('Заказ обновлён', 'success');
+    // Возвращаем футер в исходное состояние и перезагружаем просмотр + список
+    resetOrderModalFooter();
+    await viewOrder(id);
+    loadOrders();
+  };
+
+  function resetOrderModalFooter() {
+    document.getElementById('orderEditBtn').style.display = '';
+    const saveBtn = document.getElementById('orderSaveBtn');
+    if (saveBtn) saveBtn.remove();
+    const cancelBtn = document.getElementById('orderCancelBtn');
+    cancelBtn.textContent = 'Закрыть';
+    cancelBtn.onclick = closeOrderModal;
+  }
 
   window.closeOrderModal = function() {
     document.getElementById('orderModal').classList.remove('open');

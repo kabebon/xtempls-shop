@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Заказчики</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.0.1" />
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      Дашборд
+    </a>
+    <a class="nav-item" href="products.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      Товары
+    </a>
+    <a class="nav-item" href="categories.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
+      </svg>
+      Категории
+    </a>
+    <a class="nav-item" href="orders.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      Заказы
+    </a>
+    <a class="nav-item" href="trash.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+      </svg>
+      Корзина
+    </a>
+    <a class="nav-item" href="subscribers.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Подписчики
+    </a>
+    <a class="nav-item active" href="customers.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 11l-3-3m0 0l-3 3m3-3v6"/>
+      </svg>
+      Заказчики
+    </a>
+    <a class="nav-item" href="users.html">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+      Администраторы
+    </a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Заказчики</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input class="form-input" type="text" id="searchInput" placeholder="Поиск: email, имя, телефон…" style="width:280px;" onkeydown="if(event.key==='Enter')loadCustomers()" />
+        <button class="btn btn-primary" onclick="loadCustomers()">Найти</button>
+      </div>
+    </div>
+    <div class="page-content" style="padding:0">
+      <div class="table-card" style="border-radius:0;border-left:none;border-right:none;border-bottom:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Email</th>
+                <th>Имя</th>
+                <th>Телефон</th>
+                <th>Заказов</th>
+                <th>Бонусы</th>
+                <th>Статус</th>
+                <th>Создан</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="customersTable">
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Customer Modal -->
+<div class="modal-overlay" id="customerModal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <div class="modal-title" id="customerModalTitle">Заказчик</div>
+      <button class="modal-close" onclick="closeCustomerModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="customerForm">
+        <input type="hidden" id="cId" />
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="cEmail" disabled style="opacity:.7;" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Имя</label>
+          <input class="form-input" type="text" id="cName" maxlength="150" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Телефон</label>
+          <input class="form-input" type="text" id="cPhone" maxlength="30" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Бонусный баланс, ₽</label>
+          <input class="form-input" type="number" id="cBonus" step="0.01" min="0" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Реферальный код</label>
+          <input class="form-input" type="text" id="cRef" disabled style="opacity:.7;" />
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;font-weight:600;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="cVerified" /> Email подтверждён
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="cActive" checked /> Аккаунт активен
+          </label>
+        </div>
+        <div id="cOrdersInfo" style="font-size:12px;color:var(--text-muted);margin-top:12px;"></div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCustomerModal()">Отмена</button>
+      <button class="btn btn-danger" id="cDeactivateBtn" onclick="deactivateCustomer()" style="margin-right:auto;">Деактивировать</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  let currentCustomerId = null;
+  let currentCustomerEmail = '';
+
+  async function loadCustomers() {
+    const search = document.getElementById('searchInput').value.trim();
+    const url = '/api/admin/customers?per_page=100' + (search ? `&search=${encodeURIComponent(search)}` : '');
+    const res = await apiFetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    const tbody = document.getElementById('customersTable');
+    const items = data.items || [];
+    if (items.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">Заказчиков не найдено</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.map(c => {
+      const created = c.created_at ? new Date(c.created_at).toLocaleDateString('ru-RU') : '—';
+      const verified = c.is_verified
+        ? '<span class="badge badge-green">✓</span>'
+        : '<span class="badge badge-gray">—</span>';
+      const active = c.is_active
+        ? '<span class="badge badge-green">Активен</span>'
+        : '<span class="badge badge-red">Отключён</span>';
+      return `
+        <tr style="cursor:pointer;" onclick="editCustomer(${c.id})">
+          <td style="color:var(--text-muted)">${c.id}</td>
+          <td><strong>${escapeHtml(c.email)}</strong></td>
+          <td>${escapeHtml(c.name || '—')}</td>
+          <td style="font-size:12px;color:var(--text-sec)">${escapeHtml(c.phone || '—')}</td>
+          <td>${c.orders_count}</td>
+          <td>${Number(c.bonus_balance || 0).toFixed(0)}</td>
+          <td>${verified} ${active}</td>
+          <td style="font-size:12px;color:var(--text-sec)">${created}</td>
+          <td>
+            <button class="btn btn-secondary btn-icon" onclick="event.stopPropagation();editCustomer(${c.id})" title="Редактировать">✏️</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  window.editCustomer = async function(id) {
+    const res = await apiFetch(`/api/admin/customers/${id}`);
+    if (!res.ok) { showToast('Не удалось загрузить заказчика'); return; }
+    const c = await res.json();
+    currentCustomerId = c.id;
+    currentCustomerEmail = c.email;
+    document.getElementById('customerModalTitle').textContent = `Заказчик #${c.id}`;
+    document.getElementById('cId').value = c.id;
+    document.getElementById('cEmail').value = c.email;
+    document.getElementById('cName').value = c.name || '';
+    document.getElementById('cPhone').value = c.phone || '';
+    document.getElementById('cBonus').value = Number(c.bonus_balance || 0);
+    document.getElementById('cRef').value = c.referral_code || '';
+    document.getElementById('cVerified').checked = !!c.is_verified;
+    document.getElementById('cActive').checked = !!c.is_active;
+    document.getElementById('cOrdersInfo').textContent = `Заказов оформлено: ${c.orders_count}`;
+    document.getElementById('cDeactivateBtn').style.display = c.is_active ? '' : 'none';
+    document.getElementById('customerModal').classList.add('open');
+  };
+
+  window.closeCustomerModal = function() {
+    document.getElementById('customerModal').classList.remove('open');
+    currentCustomerId = null;
+  };
+
+  window.saveCustomer = async function() {
+    if (!currentCustomerId) return;
+    const body = {
+      name: document.getElementById('cName').value.trim() || null,
+      phone: document.getElementById('cPhone').value.trim() || null,
+      bonus_balance: parseFloat(document.getElementById('cBonus').value) || 0,
+      is_verified: document.getElementById('cVerified').checked,
+      is_active: document.getElementById('cActive').checked,
+    };
+    const res = await apiFetch(`/api/admin/customers/${currentCustomerId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.detail || 'Ошибка сохранения'); return; }
+    showToast('Заказчик обновлён', 'success');
+    closeCustomerModal();
+    loadCustomers();
+  };
+
+  window.deactivateCustomer = async function() {
+    if (!currentCustomerId) return;
+    if (!confirm(`Деактивировать аккаунт «${currentCustomerEmail}»?\nПользователь не сможет войти, но заказы сохранятся.`)) return;
+    const res = await apiFetch(`/api/admin/customers/${currentCustomerId}`, { method: 'DELETE' });
+    if (res.ok || res.status === 204) {
+      showToast('Аккаунт деактивирован', 'success');
+      closeCustomerModal();
+      loadCustomers();
+    } else {
+      showToast('Ошибка', 'error');
+    }
+  };
+
+  enableOverlayClose(document.getElementById('customerModal'), closeCustomerModal);
+
+  loadCustomers();
+</script>
+</body>
+</html>
