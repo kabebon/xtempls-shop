@@ -94,7 +94,12 @@ if (nameInput && tg?.initDataUnsafe?.user) {
   if (!sub || (!loginFormEl && !registerFormEl)) return;
   let intent = null;
   try { intent = JSON.parse(localStorage.getItem('xtempls_checkout_intent') || 'null'); } catch (e) {}
-  const fresh = intent && intent.ts && (Date.now() - intent.ts) < 24 * 3600 * 1000;
+  // Текст про «корзина сохранится» показываем ТОЛЬКО при реальном переходе из
+  // оформления заказа (from_checkout=true). При простом клике на «Личный кабинет»
+  // из меню intent либо отсутствует, либо не имеет флага — тогда показываем
+  // стандартный подзаголовок страницы входа/регистрации.
+  const fresh = intent && intent.from_checkout === true && intent.ts
+    && (Date.now() - intent.ts) < 24 * 3600 * 1000;
   if (fresh) {
     if (loginFormEl) {
       sub.textContent = 'Войдите, чтобы завершить оформление заказа — ваша корзина и данные доставки сохранены.';

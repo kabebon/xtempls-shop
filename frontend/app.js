@@ -375,6 +375,7 @@ window.submitOrder = async function(e) {
         consent,
         promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
         return_url: window.location.pathname + window.location.search,
+        from_checkout: true,   // флаг: переход именно из оформления заказа
         ts: Date.now()
       };
       localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
@@ -430,6 +431,7 @@ window.submitOrder = async function(e) {
             consent,
             promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
             return_url: window.location.pathname + window.location.search,
+            from_checkout: true,   // флаг: переход именно из оформления заказа
             ts: Date.now()
           };
           localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
