@@ -13,6 +13,17 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || '#0a0a0a');
 }
 
+// Реферальный код из URL / Telegram start_param — живёт до регистрации.
+(function persistRef() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = params.get('ref') || params.get('startapp');
+    const fromTg = tg?.initDataUnsafe?.start_param;
+    const ref = (fromUrl || fromTg || '').toString().trim().toUpperCase();
+    if (ref) localStorage.setItem('xtempls_ref', ref);
+  } catch (e) {}
+})();
+
 // Load public config early (non-blocking; links degrade gracefully if it fails)
 fetch(`${API}/config`)
   .then(r => r.ok ? r.json() : null)
@@ -217,12 +228,19 @@ window.openCheckout = function() {
   if (telegramEl && tg?.initDataUnsafe?.user?.username) {
     telegramEl.value = '@' + tg.initDataUnsafe.user.username;
   }
-  // Reset promo
+  // Reset promo / bonuses
   const promoInput = document.getElementById('chkPromo');
   const promoMsg = document.getElementById('promoMsg');
   if (promoInput) promoInput.value = '';
   if (promoMsg) { promoMsg.textContent = ''; promoMsg.className = 'promo-msg'; }
   window._appliedPromo = null;
+  window._bonusSpend = 0;
+  window._bonusBalance = 0;
+  const spendInput = document.getElementById('chkBonusSpend');
+  if (spendInput) spendInput.value = '';
+  const bonusMsg = document.getElementById('bonusSpendMsg');
+  if (bonusMsg) { bonusMsg.textContent = ''; bonusMsg.className = 'promo-msg'; }
+  loadCheckoutBonuses();
   updateCheckoutTotal();
   const checkoutModal = document.getElementById('checkoutModal');
   const checkoutBackdrop = document.getElementById('checkoutBackdrop');
@@ -240,21 +258,86 @@ window.backToCart = function() {
   openCart();
 };
 
+function checkoutBaseAfterPromo() {
+  const promo = window._appliedPromo;
+  const base = cartTotal();
+  if (!promo || !promo.discount_percent) return base;
+  const disc = Math.round(base * promo.discount_percent / 100);
+  return Math.max(0, base - disc);
+}
+
 function updateCheckoutTotal() {
   const totalEl = document.getElementById('checkoutTotal');
   const discEl = document.getElementById('checkoutDiscount');
   const promo = window._appliedPromo;
   const base = cartTotal();
-  if (promo) {
+  const afterPromo = checkoutBaseAfterPromo();
+  const spend = Math.min(Number(window._bonusSpend || 0), afterPromo, Number(window._bonusBalance || 0));
+  window._bonusSpend = spend;
+  const lines = [];
+  if (promo && promo.discount_percent) {
     const disc = Math.round(base * promo.discount_percent / 100);
-    const final = base - disc;
-    if (discEl) discEl.innerHTML = `<span class="promo-discount-line">Скидка ${promo.discount_percent}%: −${fmt(disc)}</span>`;
-    if (totalEl) totalEl.textContent = fmt(final);
-  } else {
-    if (discEl) discEl.innerHTML = '';
-    if (totalEl) totalEl.textContent = fmt(base);
+    lines.push(`<span class="promo-discount-line">Скидка ${promo.discount_percent}%: −${fmt(disc)}</span>`);
+  }
+  if (spend > 0) {
+    lines.push(`<span class="promo-discount-line">Бонусы: −${fmt(spend)}</span>`);
+  }
+  if (discEl) discEl.innerHTML = lines.join('<br>');
+  if (totalEl) totalEl.textContent = fmt(Math.max(0, afterPromo - spend));
+}
+
+async function loadCheckoutBonuses() {
+  const box = document.getElementById('bonusSpendBox');
+  if (!box) return;
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) {
+    box.style.display = 'none';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/account/bonuses`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { box.style.display = 'none'; return; }
+    const data = await res.json();
+    window._bonusBalance = Number(data.balance || 0);
+    const avail = document.getElementById('bonusAvailable');
+    if (avail) avail.textContent = fmt(window._bonusBalance);
+    box.style.display = window._bonusBalance > 0 ? '' : 'none';
+  } catch (e) {
+    box.style.display = 'none';
   }
 }
+
+window.toggleBonusSpend = function() {
+  const controls = document.getElementById('bonusSpendControls');
+  if (!controls) return;
+  const open = controls.style.display === 'none' || !controls.style.display;
+  controls.style.display = open ? 'flex' : 'none';
+  if (open) {
+    const input = document.getElementById('chkBonusSpend');
+    const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
+    if (input && !input.value) input.value = String(Math.floor(max));
+  }
+};
+
+window.applyBonusSpend = function() {
+  const input = document.getElementById('chkBonusSpend');
+  const msg = document.getElementById('bonusSpendMsg');
+  let val = Number(input?.value || 0);
+  if (Number.isNaN(val) || val < 0) val = 0;
+  const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
+  if (val > max) val = max;
+  window._bonusSpend = Math.round(val * 100) / 100;
+  if (input) input.value = String(window._bonusSpend);
+  if (msg) {
+    msg.textContent = window._bonusSpend > 0
+      ? `Спишем ${fmt(window._bonusSpend)} с бонусного счёта`
+      : 'Бонусы не списываются';
+    msg.className = 'promo-msg promo-ok';
+  }
+  updateCheckoutTotal();
+};
 
 window.applyPromo = async function() {
   const code = document.getElementById('chkPromo')?.value.trim();
@@ -262,14 +345,18 @@ window.applyPromo = async function() {
   if (!code) return;
   if (msg) msg.textContent = 'Проверяем...';
   try {
+    const token = localStorage.getItem('xtempls_token');
     const res = await fetch(`${API}/promo/validate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ code })
     });
     const data = await res.json();
     if (data.valid) {
-      window._appliedPromo = { code, discount_percent: data.discount_percent };
+      window._appliedPromo = { code, discount_percent: data.discount_percent || 0 };
       if (msg) { msg.textContent = data.message; msg.className = 'promo-msg promo-ok'; }
     } else {
       window._appliedPromo = null;
@@ -374,6 +461,7 @@ window.submitOrder = async function(e) {
         comment,
         consent,
         promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+        bonus_spend: window._bonusSpend || 0,
         return_url: window.location.pathname + window.location.search,
         from_checkout: true,   // флаг: переход именно из оформления заказа
         ts: Date.now()
@@ -397,6 +485,7 @@ window.submitOrder = async function(e) {
       comment: comment || null,
       tg_init_data: tg?.initData || null,
       promo_code: window._appliedPromo?.code || null,
+      bonus_spend: window._bonusSpend > 0 ? window._bonusSpend : null,
       consent_accepted: true,
       items: cart.map(i => ({
         product_id: i.product_id,
@@ -430,6 +519,7 @@ window.submitOrder = async function(e) {
             comment,
             consent,
             promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+            bonus_spend: window._bonusSpend || 0,
             return_url: window.location.pathname + window.location.search,
             from_checkout: true,   // флаг: переход именно из оформления заказа
             ts: Date.now()
@@ -587,6 +677,17 @@ function injectCartUI() {
               <button type="button" class="promo-apply-btn" onclick="applyPromo()">Применить</button>
             </div>
             <div id="promoMsg" class="promo-msg"></div>
+            <div id="bonusSpendBox" class="bonus-spend-box" style="display:none;">
+              <div class="bonus-spend-head">
+                <span>На бонусном счёте: <b id="bonusAvailable">0 ₽</b></span>
+                <button type="button" class="promo-apply-btn" onclick="toggleBonusSpend()">Списать бонусы</button>
+              </div>
+              <div id="bonusSpendControls" class="promo-row" style="display:none;margin-top:8px;">
+                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="1" placeholder="Сколько списать" />
+                <button type="button" class="promo-apply-btn" onclick="applyBonusSpend()">Применить</button>
+              </div>
+              <div id="bonusSpendMsg" class="promo-msg"></div>
+            </div>
             <label class="chk-label">Комментарий к заказу</label>
             <textarea id="chkComment" class="chk-input" placeholder="Пожелания и т.д." rows="2"></textarea>
             <label class="chk-consent-row">
@@ -694,6 +795,16 @@ function resumeCheckoutIfRequested() {
           setTimeout(() => {
             if (typeof window.applyPromo === 'function') window.applyPromo();
           }, 100);
+        }
+        if (intent.bonus_spend) {
+          window._bonusSpend = Number(intent.bonus_spend) || 0;
+          const spendEl = document.getElementById('chkBonusSpend');
+          if (spendEl) spendEl.value = String(window._bonusSpend);
+          const controls = document.getElementById('bonusSpendControls');
+          if (controls) controls.style.display = 'flex';
+          setTimeout(() => {
+            if (typeof window.applyBonusSpend === 'function') window.applyBonusSpend();
+          }, 150);
         }
       }
     } catch (e) {}

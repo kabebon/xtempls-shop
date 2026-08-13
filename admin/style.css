@@ -195,6 +195,18 @@ body {
 .nav-item svg { flex-shrink: 0; opacity: 0.8; }
 .nav-item.active svg { opacity: 1; }
 
+.nav-group { display: flex; flex-direction: column; }
+.nav-sub {
+  display: none;
+  flex-direction: column;
+  padding: 0 0 6px;
+}
+.nav-group.open .nav-sub { display: flex; }
+.nav-subitem {
+  padding-left: 46px !important;
+  font-size: 12.5px !important;
+}
+
 .sidebar-bottom {
   margin-top: auto;
   padding: 16px;

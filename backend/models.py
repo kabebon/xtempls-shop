@@ -97,6 +97,7 @@ class TgUser(Base):
     last_name = Column(String(100), nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    pending_ref_code = Column(String(32), nullable=True)
 
     orders = relationship("Order", back_populates="tg_user", lazy="selectin")
 
@@ -133,6 +134,7 @@ class User(Base):
     referred_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     referral_code = Column(String(32), nullable=False, unique=True, index=True)
     bonus_balance = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
+    referral_signup_bonus_paid = Column(Boolean, default=False, nullable=False, server_default="0")
     notification_prefs = Column(JSON, nullable=True)  # {"order_updates": bool, "promo": bool}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -193,6 +195,8 @@ class BonusTransaction(Base):
     type = Column(SAEnum(BonusTxType), default=BonusTxType.accrual, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+
     user = relationship("User", back_populates="bonus_transactions")
 
 
@@ -230,6 +234,9 @@ class Order(Base):
     payment_status = Column(SAEnum(PaymentStatus), default=PaymentStatus.pending, nullable=False)
     payment_label = Column(String(100), nullable=True, unique=True, index=True)  # наш ID в ЮМани
     amount = Column(Numeric(10, 2), nullable=True)          # итоговая сумма заказа
+    bonus_spent = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
+    referral_cashback_paid = Column(Boolean, default=False, nullable=False, server_default="0")
+    bonus_refunded = Column(Boolean, default=False, nullable=False, server_default="0")
     # ─────────────────────────────────────────────────────────────────────────
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -239,8 +246,17 @@ class Order(Base):
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan", lazy="selectin")
 
 
+class PromoKind(str, enum.Enum):
+    manual = "manual"
+    referral = "referral"
+
+
 class PromoCode(Base):
-    """Promotional discount codes."""
+    """Promotional discount codes.
+
+    kind=manual — обычный промокод из админки.
+    kind=referral — персональный код пользователя (он же реферальный промокод).
+    """
     __tablename__ = "promo_codes"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -251,6 +267,11 @@ class PromoCode(Base):
     used_count = Column(Integer, default=0)
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    kind = Column(String(20), default=PromoKind.manual.value, nullable=False, server_default="manual")
+    owner_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    cashback_percent = Column(Integer, nullable=True)  # override глобального кэшбэка держателю
+
+    owner = relationship("User", foreign_keys=[owner_user_id])
 
 
 class OrderItem(Base):
@@ -268,3 +289,16 @@ class OrderItem(Base):
     product = relationship("Product")
     promo_code = Column(String(50), nullable=True)       # snapshot of applied promo code
     discount_amount = Column(Numeric(10, 2), nullable=True)  # saved discount amount
+
+
+class AppSetting(Base):
+    """Ключ-значение для настроек, которые админ меняет без деплоя.
+
+    Рефералка: referral.registration_bonus, referral.purchase_cashback_percent,
+    referral.discount_percent, referral.max_bonus_spend_percent.
+    """
+    __tablename__ = "app_settings"
+
+    key = Column(String(80), primary_key=True)
+    value = Column(JSON, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

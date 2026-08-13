@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.0.13" />
+  <link rel="stylesheet" href="style.css?v=1.0.16" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -44,8 +44,9 @@
       <label class="chk-label" for="password">Пароль</label>
       <input class="chk-input" type="password" id="password" name="password" placeholder="Минимум 6 символов" autocomplete="new-password" required />
 
-      <!-- Реферальный код из URL (?ref=...) подставляется скрыто -->
+      <!-- Реферальный код из URL (?ref=...) / localStorage / Telegram -->
       <input type="hidden" id="refCode" />
+      <p class="ref-text" id="refHint" hidden style="margin:8px 0 0;font-size:13px;"></p>
 
       <button type="submit" class="checkout-submit-btn" id="submitBtn">Зарегистрироваться</button>
     </form>
@@ -59,6 +60,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="account.js?v=1.0.15"></script>
+<script src="account.js?v=1.0.16"></script>
 </body>
 </html>

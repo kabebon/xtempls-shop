@@ -22,8 +22,9 @@ from schemas import (
     PromoCodeCreate, PromoCodeOut, ImageReorderRequest,
     SubscriberOut, SubscriberListResponse,
     CustomerOut, CustomerUpdate, CustomerListResponse,
+    ReferralSettings, ReferralSettingsUpdate, AdminBonusAdjust, BonusOut,
 )
-from models import AdminUser
+from models import AdminUser, BonusTxType
 from notifications import broadcast as tg_broadcast, get_broadcast_status
 from mailer import send_order_status_email
 import logging
@@ -514,10 +515,19 @@ async def admin_broadcast_status(
 
 @router.get("/admin/promo-codes", response_model=List[PromoCodeOut])
 async def admin_list_promo_codes(
+    kind: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    return await crud.get_all_promo_codes(db)
+    promos = await crud.get_all_promo_codes(db, kind=kind)
+    out = []
+    for p in promos:
+        item = PromoCodeOut.model_validate(p)
+        owner = getattr(p, "owner", None)
+        if owner is not None:
+            item.owner_email = owner.email
+        out.append(item)
+    return out
 
 
 @router.post("/admin/promo-codes", response_model=PromoCodeOut, status_code=201)
@@ -541,7 +551,10 @@ async def admin_delete_promo_code(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    await crud.delete_promo_code(db, promo_id)
+    try:
+        await crud.delete_promo_code(db, promo_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.patch("/admin/promo-codes/{promo_id}/toggle", response_model=PromoCodeOut)
@@ -554,6 +567,74 @@ async def admin_toggle_promo_code(
     if not promo:
         raise HTTPException(status_code=404, detail="Промокод не найден")
     return promo
+
+
+# ── Admin: Referral settings & bonus management ───────────────────────
+
+@router.get("/admin/referral-settings", response_model=ReferralSettings)
+async def admin_get_referral_settings(
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    return await crud.get_referral_settings(db)
+
+
+@router.put("/admin/referral-settings", response_model=ReferralSettings)
+async def admin_put_referral_settings(
+    data: ReferralSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    try:
+        return await crud.set_referral_settings(db, data.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/admin/customers/{user_id}/bonuses", response_model=BonusOut)
+async def admin_customer_bonuses(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    txs = await crud.list_bonus_transactions(db, user_id)
+    return {"balance": user.bonus_balance, "transactions": txs}
+
+
+@router.post("/admin/customers/{user_id}/bonuses", response_model=BonusOut)
+async def admin_adjust_customer_bonus(
+    user_id: int,
+    data: AdminBonusAdjust,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    reason = (data.reason or "").strip() or "Ручная операция из админки"
+    try:
+        tx_type = BonusTxType(data.type)
+        await crud.add_bonus_transaction(db, user_id, data.amount, reason=reason, tx_type=tx_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    user = await crud.get_user(db, user_id)
+    txs = await crud.list_bonus_transactions(db, user_id)
+    return {"balance": user.bonus_balance, "transactions": txs}
+
+
+@router.get("/admin/customers/{user_id}/referrals")
+async def admin_customer_referrals(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    return await crud.list_customer_referrals(db, user_id)
 
 
 # ── Admin: Users ──────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     contact_telegram: str = ""       # public contact channel/@username shown in footer
     # Bot settings
     telegram_bot_token: str = ""
+    telegram_bot_username: str = ""   # без @, для t.me/<name>?start=REFCODE
     manager_chat_id: str = ""         # Может содержать несколько ID через запятую
     bot_secret: str = "bot-internal-secret"  # Секрет для внутренних вызовов bot→backend
     # ЮМани QuickPay

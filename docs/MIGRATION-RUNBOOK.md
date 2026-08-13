@@ -44,7 +44,8 @@
 | `product_sizes` | `ProductSize` | Размеры/склад |
 | `categories` | `Category` | Категории |
 | `admin_users` | `AdminUser` | Учётки админов |
-| `promo_codes` | `PromoCode` | Промокоды |
+| `promo_codes` | `PromoCode` | Промокоды (включая персональные реферальные) |
+| `app_settings` | `AppSetting` | Ставки рефералки (бонус/кэшбэк/скидка) |
 
 Полный `pg_dump` (без `--schema-only` / без `--table`) захватывает **все**
 таблицы автоматически. Дополнительно — том `uploads_data` с картинками

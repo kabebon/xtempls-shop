@@ -77,12 +77,23 @@ if (nameInput && tg?.initDataUnsafe?.user) {
   const u = tg.initDataUnsafe.user;
   nameInput.value = [u.first_name, u.last_name].filter(Boolean).join(' ') || nameInput.value;
 }
-// Реферальный код из URL → скрытое поле
+// Реферальный код из URL / localStorage / Telegram start_param → скрытое поле
 (() => {
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get('ref') || params.get('startapp');
+  const fromTg = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+  const stored = (() => { try { return localStorage.getItem('xtempls_ref'); } catch (e) { return null; } })();
+  const ref = (fromUrl || fromTg || stored || '').toString().trim().toUpperCase();
+  if (ref) {
+    try { localStorage.setItem('xtempls_ref', ref); } catch (e) {}
+  }
   const refInput = document.getElementById('refCode');
-  if (!refInput) return;
-  const ref = new URLSearchParams(location.search).get('ref');
-  if (ref) refInput.value = ref;
+  if (refInput && ref) refInput.value = ref;
+  const hint = document.getElementById('refHint');
+  if (hint && ref) {
+    hint.hidden = false;
+    hint.textContent = `Вас пригласили по коду ${ref}`;
+  }
 })();
 
 // Подсказка на странице входа или регистрации, если пользователь пришёл из оформления заказа:
@@ -125,6 +136,7 @@ if (registerForm) {
       name: document.getElementById('name').value.trim() || undefined,
       phone: document.getElementById('phone').value.trim() || undefined,
       ref_code: document.getElementById('refCode').value || undefined,
+      tg_init_data: window.Telegram?.WebApp?.initData || undefined,
     };
     btn.disabled = true; btn.textContent = 'Регистрируем…';
     try {
@@ -134,6 +146,7 @@ if (registerForm) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(data.detail || 'Ошибка регистрации'); return; }
+      try { localStorage.removeItem('xtempls_ref'); } catch (e) {}
       showToast('Готово! Проверьте почту для подтверждения.');
       setTimeout(() => location.href = '/login.html', 1500);
     } catch (err) {
@@ -583,15 +596,59 @@ async function setupReferral() {
     const res = await apiFetch('/account/referral');
     const data = await res.json();
     refLink.value = data.referral_link;
-    document.getElementById('refCode').textContent = data.referral_code;
-    document.getElementById('invitedCount').textContent = data.invited_count;
+    const codeEl = document.getElementById('refCode');
+    if (codeEl) codeEl.textContent = data.promo_code || data.referral_code;
+    const invited = document.getElementById('invitedCount');
+    if (invited) invited.textContent = data.invited_count;
+    const earned = document.getElementById('refEarned');
+    if (earned) earned.textContent = fmtPrice(data.earned_total || 0);
+    const rules = document.getElementById('refRules');
+    if (rules) {
+      const parts = [];
+      if (data.program_enabled === false) {
+        parts.push('Реферальная программа сейчас отключена администратором.');
+      } else {
+        if (data.signup_bonus_enabled !== false) {
+          parts.push(`За регистрацию друга по ссылке вам начисляется <b>${fmtPrice(data.registration_bonus)}</b>.`);
+        }
+        if (data.invitee_bonus_enabled) {
+          parts.push(`Друг при регистрации получает <b>${fmtPrice(data.invitee_bonus)}</b>.`);
+        }
+        if (data.purchase_cashback_enabled !== false) {
+          parts.push(`Когда друг покупает по вашему промокоду — вам кэшбэк <b>${data.purchase_cashback_percent}%</b>.`);
+        }
+        if (data.buyer_discount_enabled !== false) {
+          parts.push(`Ему скидка <b>${data.discount_percent}%</b>.`);
+        }
+        parts.push('Свой промокод на свои покупки использовать нельзя.');
+      }
+      rules.innerHTML = parts.join(' ');
+    }
+    const botRow = document.getElementById('refBotRow');
+    const botLink = document.getElementById('refBotLink');
+    if (data.bot_link && botRow && botLink) {
+      botRow.hidden = false;
+      botLink.value = data.bot_link;
+    }
   } catch (e) {}
-  document.getElementById('copyRefBtn').addEventListener('click', () => {
-    refLink.select();
-    navigator.clipboard?.writeText(refLink.value).then(
-      () => showToast('Ссылка скопирована'),
-      () => { document.execCommand('copy'); showToast('Ссылка скопирована'); }
+  const copy = (input, label) => {
+    if (!input) return;
+    input.select();
+    navigator.clipboard?.writeText(input.value).then(
+      () => showToast(label),
+      () => { document.execCommand('copy'); showToast(label); }
     );
+  };
+  document.getElementById('copyRefBtn')?.addEventListener('click', () => copy(refLink, 'Ссылка скопирована'));
+  document.getElementById('copyPromoBtn')?.addEventListener('click', () => {
+    const code = document.getElementById('refCode')?.textContent || '';
+    navigator.clipboard?.writeText(code).then(
+      () => showToast('Промокод скопирован'),
+      () => showToast(code)
+    );
+  });
+  document.getElementById('copyBotBtn')?.addEventListener('click', () => {
+    copy(document.getElementById('refBotLink'), 'Ссылка на бота скопирована');
   });
 }
 

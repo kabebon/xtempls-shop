@@ -38,6 +38,7 @@ async def register_tg_user(
         username=data.username,
         first_name=data.first_name,
         last_name=data.last_name,
+        pending_ref_code=data.ref_code,
     )
     return {"ok": True, "chat_id": user.chat_id}
 
@@ -100,8 +101,8 @@ async def create_order(
         validated = validate_init_data(data.tg_init_data, settings.telegram_bot_token)
         if validated:
             try:
-                user = json.loads(validated.get("user", "{}"))
-                verified_chat_id = user.get("id")
+                tg_user_payload = json.loads(validated.get("user", "{}"))
+                verified_chat_id = tg_user_payload.get("id")
             except (json.JSONDecodeError, TypeError):
                 pass
         # If invalid/missing signature — still accept the order, just no chat_id.
@@ -117,28 +118,25 @@ async def create_order(
         # Product(s) not found / inactive
         raise HTTPException(status_code=400, detail=str(e))
 
-    # ── ЮМани: назначаем label и считаем сумму ───────────────────────────────
+    # ── ЮМани: назначаем label. Сумма уже посчитана в crud.create_order ────
     payment_url: Optional[str] = None
     is_catalog = (data.order_type == OrderType.catalog)
-    if is_catalog and settings.yoomoney_wallet:
-        # Уникальный label = "order_{id}" — вернётся в webhook
+    already_paid = order.payment_status == "paid" or (
+        getattr(order.payment_status, "value", order.payment_status) == "paid"
+    )
+    if is_catalog and settings.yoomoney_wallet and not already_paid and Decimal(order.amount or 0) > 0:
         label = f"order_{order.id}"
-        total_amount = sum(
-            item.product_price * item.quantity for item in order.items
-        )
-        # Сохраняем label и amount в БД
         await db.execute(
             update(Order)
             .where(Order.id == order.id)
-            .values(payment_label=label, amount=total_amount)
+            .values(payment_label=label)
         )
         await db.commit()
         await db.refresh(order)
-        payment_url = build_payment_url(order.id, total_amount, label)
+        payment_url = build_payment_url(order.id, order.amount, label)
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Notify manager asynchronously ONLY if we didn't send them to YooMoney
-    # (Design requests or cases where YooMoney is not configured)
+    # Менеджеру — если ЮМани не нужен (дизайн, 100% бонусами, или кошелёк не задан)
     if not payment_url:
         try:
             await notify_manager_new_order(order)
@@ -154,13 +152,25 @@ async def create_order(
 # ─── Public: Validate Promo Code ──────────────────────────────────────────────
 
 @promo_router.post("/validate", response_model=PromoValidateResponse)
-async def validate_promo(data: PromoValidateRequest, db: AsyncSession = Depends(get_db)):
+async def validate_promo(
+    data: PromoValidateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_user),
+):
     """Public endpoint: check if a promo code is valid and return the discount."""
-    promo = await crud.validate_promo_code(db, data.code)
-    if not promo:
-        return PromoValidateResponse(valid=False, message="Промокод недействителен или истёк")
+    promo, err = await crud.resolve_promo_code(
+        db, data.code, buyer_user_id=user.id if user else None
+    )
+    if err or not promo:
+        return PromoValidateResponse(valid=False, message=err or "Промокод недействителен или истёк")
+    is_referral = promo.kind == "referral" or bool(promo.owner_user_id)
+    if promo.discount_percent and promo.discount_percent > 0:
+        msg = f"Скидка {promo.discount_percent}% применена!"
+    else:
+        msg = "Промокод применён"
     return PromoValidateResponse(
         valid=True,
         discount_percent=promo.discount_percent,
-        message=f"Скидка {promo.discount_percent}% применена!"
+        message=msg,
+        is_referral=is_referral,
     )

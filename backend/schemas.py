@@ -211,6 +211,7 @@ class TgUserRegister(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    ref_code: Optional[str] = Field(None, max_length=32)
 
 
 class TgUserOut(BaseModel):
@@ -284,6 +285,7 @@ class OrderCreate(BaseModel):
     user_id: Optional[int] = None  # set from the optional Bearer token (logged-in user)
     order_type: OrderType = OrderType.catalog
     promo_code: Optional[str] = None  # promo code applied at checkout
+    bonus_spend: Optional[Decimal] = Field(None, ge=0)  # сколько бонусов списать
     consent_accepted: bool = Field(
         False,
         description="Customer must accept the offer & privacy policy to submit.",
@@ -336,6 +338,7 @@ class OrderOut(BaseModel):
     payment_status: str = "pending"
     payment_label: Optional[str] = None
     amount: Optional[Decimal] = None
+    bonus_spent: Decimal = Decimal("0")
     payment_url: Optional[str] = None  # генерируется на лету, не хранится в БД
     # Soft-delete (для админки — корзина)
     is_deleted: bool = False
@@ -427,9 +430,25 @@ class PromoCodeOut(BaseModel):
     used_count: int
     expires_at: Optional[datetime] = None
     created_at: datetime
+    kind: str = "manual"
+    owner_user_id: Optional[int] = None
+    owner_email: Optional[str] = None
+    cashback_percent: Optional[int] = None
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _owner_email(cls, data):
+        if not isinstance(data, dict):
+            owner = getattr(data, "owner", None)
+            if owner is not None and getattr(owner, "email", None):
+                try:
+                    data.owner_email = owner.email
+                except Exception:
+                    pass
+        return data
 
 
 class PromoValidateRequest(BaseModel):
@@ -440,6 +459,52 @@ class PromoValidateResponse(BaseModel):
     valid: bool
     discount_percent: Optional[int] = None
     message: Optional[str] = None
+    is_referral: bool = False
+
+
+class ReferralSettings(BaseModel):
+    program_enabled: bool = True
+    signup_bonus_enabled: bool = True
+    registration_bonus: Decimal = Field(..., ge=0)
+    invitee_bonus_enabled: bool = False
+    invitee_bonus: Decimal = Field(Decimal("0"), ge=0)
+    purchase_cashback_enabled: bool = True
+    purchase_cashback_percent: Decimal = Field(..., ge=0, le=100)
+    buyer_discount_enabled: bool = True
+    discount_percent: Decimal = Field(..., ge=0, le=100)
+    max_bonus_spend_percent: Decimal = Field(..., ge=0, le=100)
+    min_order_amount: Decimal = Field(Decimal("0"), ge=0)
+    allow_self_promo: bool = False
+    cashback_base: str = "paid"
+
+
+class ReferralSettingsUpdate(BaseModel):
+    program_enabled: Optional[bool] = None
+    signup_bonus_enabled: Optional[bool] = None
+    registration_bonus: Optional[Decimal] = Field(None, ge=0)
+    invitee_bonus_enabled: Optional[bool] = None
+    invitee_bonus: Optional[Decimal] = Field(None, ge=0)
+    purchase_cashback_enabled: Optional[bool] = None
+    purchase_cashback_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    buyer_discount_enabled: Optional[bool] = None
+    discount_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    max_bonus_spend_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    min_order_amount: Optional[Decimal] = Field(None, ge=0)
+    allow_self_promo: Optional[bool] = None
+    cashback_base: Optional[str] = None
+
+
+class AdminBonusAdjust(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    type: str = Field(..., description="accrual | spend")
+    reason: Optional[str] = Field(None, max_length=200)
+
+    @field_validator("type")
+    @classmethod
+    def _tx_type(cls, v):
+        if v not in ("accrual", "spend"):
+            raise ValueError("type должен быть accrual или spend")
+        return v
 
 
 # ─── Image reorder ───────────────────────────────────────────────────────────────
@@ -461,6 +526,7 @@ class RegisterRequest(BaseModel):
     name: Optional[str] = Field(None, max_length=150)
     phone: Optional[str] = Field(None, max_length=30)
     ref_code: Optional[str] = Field(None, max_length=32)  # реферальный код пригласившего
+    tg_init_data: Optional[str] = None  # чтобы подтянуть pending_ref из /start CODE
 
     @field_validator("phone")
     @classmethod
@@ -511,6 +577,9 @@ class CustomerOut(BaseModel):
     is_active: bool
     bonus_balance: Decimal = Decimal("0")
     referral_code: str
+    referred_by_id: Optional[int] = None
+    referred_by_email: Optional[str] = None
+    invited_count: int = 0
     created_at: datetime
     orders_count: int = 0
 
@@ -611,8 +680,21 @@ class FavoriteOut(BaseModel):
 
 class ReferralOut(BaseModel):
     referral_code: str
+    promo_code: str
     referral_link: str
+    bot_link: Optional[str] = None
     invited_count: int
+    earned_total: Decimal = Decimal("0")
+    registration_bonus: Decimal = Decimal("0")
+    purchase_cashback_percent: Decimal = Decimal("0")
+    discount_percent: Decimal = Decimal("0")
+    program_enabled: bool = True
+    signup_bonus_enabled: bool = True
+    invitee_bonus_enabled: bool = False
+    invitee_bonus: Decimal = Decimal("0")
+    purchase_cashback_enabled: bool = True
+    buyer_discount_enabled: bool = True
+    min_order_amount: Decimal = Decimal("0")
 
 
 # ─── Бонусы ──────────────────────────────────────────────────────────────────

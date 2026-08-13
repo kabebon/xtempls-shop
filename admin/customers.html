@@ -6,7 +6,7 @@
   <title>XTEMPLS Admin — Заказчики</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.0.1" />
+  <link rel="stylesheet" href="style.css?v=1.0.2" />
 </head>
 <body>
 <div class="app-layout">
@@ -146,12 +146,26 @@
         </div>
         <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label">Бонусный баланс, ₽</label>
-          <input class="form-input" type="number" id="cBonus" step="0.01" min="0" />
+          <input class="form-input" type="number" id="cBonus" step="0.01" min="0" disabled style="opacity:.7;" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Начислить / списать бонусы</label>
+          <div style="display:flex;gap:8px;">
+            <input class="form-input" type="number" id="cBonusAmt" min="0.01" step="1" placeholder="Сумма" />
+            <input class="form-input" type="text" id="cBonusReason" placeholder="Причина" />
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button type="button" class="btn btn-primary" onclick="adjustBonus('accrual')">+ Начислить</button>
+            <button type="button" class="btn btn-danger" onclick="adjustBonus('spend')">− Списать</button>
+          </div>
         </div>
         <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label">Реферальный код</label>
           <input class="form-input" type="text" id="cRef" disabled style="opacity:.7;" />
+          <div id="cRefInfo" style="font-size:12px;color:var(--text-muted);margin-top:6px;"></div>
         </div>
+        <div id="cRefList" style="font-size:12px;color:var(--text-sec);margin-bottom:12px;"></div>
+        <div id="cBonusHistory" style="font-size:12px;max-height:160px;overflow:auto;margin-bottom:12px;"></div>
         <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;font-weight:600;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="cVerified" /> Email подтверждён
@@ -236,11 +250,57 @@
     document.getElementById('cPhone').value = c.phone || '';
     document.getElementById('cBonus').value = Number(c.bonus_balance || 0);
     document.getElementById('cRef').value = c.referral_code || '';
+    document.getElementById('cBonusAmt').value = '';
+    document.getElementById('cBonusReason').value = '';
     document.getElementById('cVerified').checked = !!c.is_verified;
     document.getElementById('cActive').checked = !!c.is_active;
+    const invited = c.invited_count || 0;
+    const refBy = c.referred_by_email ? `Пригласил: ${c.referred_by_email}. ` : '';
+    document.getElementById('cRefInfo').textContent = `${refBy}Приглашено: ${invited}`;
     document.getElementById('cOrdersInfo').textContent = `Заказов оформлено: ${c.orders_count}`;
     document.getElementById('cDeactivateBtn').style.display = c.is_active ? '' : 'none';
     document.getElementById('customerModal').classList.add('open');
+    loadCustomerBonusExtra(c.id);
+  };
+
+  async function loadCustomerBonusExtra(id) {
+    const [bonRes, refRes] = await Promise.all([
+      apiFetch(`/api/admin/customers/${id}/bonuses`),
+      apiFetch(`/api/admin/customers/${id}/referrals`),
+    ]);
+    if (bonRes.ok) {
+      const data = await bonRes.json();
+      document.getElementById('cBonus').value = Number(data.balance || 0);
+      const txs = data.transactions || [];
+      document.getElementById('cBonusHistory').innerHTML = txs.slice(0, 8).map(t => {
+        const sign = t.type === 'accrual' ? '+' : '−';
+        const d = t.created_at ? new Date(t.created_at).toLocaleDateString('ru-RU') : '';
+        return `<div>${d} ${sign}${Number(t.amount).toFixed(0)} ₽ — ${escapeHtml(t.reason || '')}</div>`;
+      }).join('') || '<div style="color:var(--text-muted)">Истории бонусов нет</div>';
+    }
+    if (refRes.ok) {
+      const list = await refRes.json();
+      document.getElementById('cRefList').innerHTML = list.length
+        ? 'Рефералы: ' + list.map(u => escapeHtml(u.email)).join(', ')
+        : '';
+    }
+  }
+
+  window.adjustBonus = async function(type) {
+    if (!currentCustomerId) return;
+    const amount = parseFloat(document.getElementById('cBonusAmt').value);
+    const reason = document.getElementById('cBonusReason').value.trim();
+    if (!amount || amount <= 0) { showToast('Укажите сумму', 'error'); return; }
+    const res = await apiFetch(`/api/admin/customers/${currentCustomerId}/bonuses`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, type, reason: reason || null }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.detail || 'Ошибка', 'error'); return; }
+    showToast(type === 'accrual' ? 'Бонусы начислены' : 'Бонусы списаны', 'success');
+    document.getElementById('cBonusAmt').value = '';
+    loadCustomerBonusExtra(currentCustomerId);
+    loadCustomers();
   };
 
   window.closeCustomerModal = function() {
@@ -253,7 +313,6 @@
     const body = {
       name: document.getElementById('cName').value.trim() || null,
       phone: document.getElementById('cPhone').value.trim() || null,
-      bonus_balance: parseFloat(document.getElementById('cBonus').value) || 0,
       is_verified: document.getElementById('cVerified').checked,
       is_active: document.getElementById('cActive').checked,
     };

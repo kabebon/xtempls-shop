@@ -208,6 +208,7 @@ FastAPI автоматически генерирует документацию
 | Переменная | Описание |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Токен бота от @BotFather |
+| `TELEGRAM_BOT_USERNAME` | Username бота без @ (для реф. ссылки `t.me/name?start=CODE`) |
 | `WEBAPP_URL` | URL Mini App (`https://xtempls.ru`) |
 | `POSTGRES_USER` | Пользователь PostgreSQL |
 | `POSTGRES_PASSWORD` | Пароль PostgreSQL |

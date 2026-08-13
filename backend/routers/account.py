@@ -11,14 +11,17 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from database import get_db
+from database import get_db, settings
 import crud
 from auth import (
     verify_password, create_user_token, get_current_user,
 )
+from telegram_auth import validate_init_data
+import json
 from mailer import send_verification_email
-from models import User, Favorite as FavoriteModel, Product
+from models import User, Favorite as FavoriteModel, Product, TgUser
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from schemas import (
@@ -40,10 +43,28 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     existing = await crud.get_user_by_email(db, data.email)
     if existing:
         raise HTTPException(status_code=409, detail="Пользователь с таким email уже зарегистрирован")
+
+    ref_code = data.ref_code
+    # Если код не пришёл с формы, но человек зашёл в Mini App после /start CODE —
+    # берём pending_ref_code, сохранённый ботом.
+    if not ref_code and data.tg_init_data and settings.telegram_bot_token:
+        validated = validate_init_data(data.tg_init_data, settings.telegram_bot_token)
+        if validated:
+            try:
+                tg_payload = json.loads(validated.get("user", "{}"))
+                chat_id = tg_payload.get("id")
+            except (json.JSONDecodeError, TypeError):
+                chat_id = None
+            if chat_id:
+                tg_row = await db.execute(select(TgUser).where(TgUser.chat_id == chat_id))
+                tg_user = tg_row.scalar_one_or_none()
+                if tg_user and tg_user.pending_ref_code:
+                    ref_code = tg_user.pending_ref_code
+
     try:
         user = await crud.create_user(
             db, email=data.email, password=data.password,
-            name=data.name, phone=data.phone, ref_code=data.ref_code,
+            name=data.name, phone=data.phone, ref_code=ref_code,
         )
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Пользователь с таким email уже зарегистрирован")

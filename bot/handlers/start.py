@@ -3,7 +3,7 @@ import logging
 import httpx
 from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -16,33 +16,46 @@ if not WEBAPP_URL:
     logger.error("WEBAPP_URL is not set — Mini App button will not work. Set it in .env")
 
 
-async def register_user(message: Message):
+async def register_user(message: Message, ref_code: str | None = None):
     """Register/update the Telegram user in backend DB for broadcast purposes."""
     try:
+        payload = {
+            "chat_id": message.from_user.id,
+            "username": message.from_user.username,
+            "first_name": message.from_user.first_name,
+            "last_name": message.from_user.last_name,
+        }
+        if ref_code:
+            payload["ref_code"] = ref_code
         async with httpx.AsyncClient(timeout=5) as client:
             await client.post(
                 f"{BACKEND_URL}/api/orders/tg/register",
-                json={
-                    "chat_id": message.from_user.id,
-                    "username": message.from_user.username,
-                    "first_name": message.from_user.first_name,
-                    "last_name": message.from_user.last_name,
-                },
+                json=payload,
                 headers={"x-bot-secret": BOT_SECRET}
             )
     except Exception as e:
         logger.warning(f"Failed to register user {message.from_user.id}: {e}")
 
 
-@router.message(CommandStart())
-async def cmd_start(message: Message):
-    await register_user(message)
+def _shop_url(ref_code: str | None = None) -> str:
+    url = WEBAPP_URL or ""
+    if ref_code and url:
+        sep = "&" if "?" in url else "?"
+        return f"{url}{sep}ref={ref_code}"
+    return url
 
+
+@router.message(CommandStart())
+async def cmd_start(message: Message, command: CommandObject):
+    ref = (command.args or "").strip().upper() or None
+    await register_user(message, ref)
+
+    shop_url = _shop_url(ref)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
                 text="🛍 Открыть магазин",
-                web_app=WebAppInfo(url=WEBAPP_URL)
+                web_app=WebAppInfo(url=shop_url)
             )
         ]
     ])

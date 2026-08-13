@@ -6,7 +6,7 @@
   <title>XTEMPLS Admin — Промокоды</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.0.1" />
+  <link rel="stylesheet" href="style.css?v=1.0.2" />
 </head>
 <body>
 <div class="app-layout">
@@ -66,17 +66,76 @@
     </div>
 
     <div class="page-body">
+      <div class="card" style="padding:20px;margin-bottom:16px;">
+        <div style="font-weight:700;margin-bottom:12px;">Реферальная программа — все правила</div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px 22px;margin-bottom:16px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsEnabled" /> Программа включена
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsSignupOn" /> Бонус держателю за регистрацию
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsInviteeOn" /> Бонус приглашённому
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsCashbackOn" /> Кэшбэк держателю с покупки
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsDiscountOn" /> Скидка покупателю по промокоду
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            <input type="checkbox" id="rsSelfPromo" /> Разрешить свой промокод
+          </label>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+          <label class="form-label">Бонус держателю за регистрацию, ₽
+            <input class="form-input" type="number" min="0" step="1" id="rsSignup" />
+          </label>
+          <label class="form-label">Бонус приглашённому, ₽
+            <input class="form-input" type="number" min="0" step="1" id="rsInvitee" />
+          </label>
+          <label class="form-label">Кэшбэк держателю с покупки, %
+            <input class="form-input" type="number" min="0" max="100" step="1" id="rsCashback" />
+          </label>
+          <label class="form-label">Скидка покупателю по реф. коду, %
+            <input class="form-input" type="number" min="0" max="100" step="1" id="rsDiscount" />
+          </label>
+          <label class="form-label">Макс. доля заказа бонусами, %
+            <input class="form-input" type="number" min="0" max="100" step="1" id="rsMaxSpend" />
+          </label>
+          <label class="form-label">Мин. сумма заказа для кэшбэка, ₽
+            <input class="form-input" type="number" min="0" step="1" id="rsMinOrder" />
+          </label>
+          <label class="form-label">База кэшбэка
+            <select class="form-input" id="rsCashbackBase">
+              <option value="paid">Оплаченная сумма (после бонусов)</option>
+              <option value="subtotal">Сумма товаров (после скидки)</option>
+            </select>
+          </label>
+        </div>
+        <button class="btn btn-primary" style="margin-top:14px;" onclick="saveReferralSettings()">Сохранить настройки</button>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+          Кэшбэк за покупку — после оплаты. Бонус за регистрацию — после подтверждения email.
+          Ручные промокоды (не реферальные) этими тумблерами не отключаются.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn btn-secondary" id="fltAll" onclick="setPromoFilter('')">Все</button>
+        <button class="btn btn-secondary" id="fltManual" onclick="setPromoFilter('manual')">Ручные</button>
+        <button class="btn btn-secondary" id="fltRef" onclick="setPromoFilter('referral')">Реферальные</button>
+      </div>
       <div class="card" style="overflow-x:auto;">
         <table class="promo-table" id="promoTable">
           <thead>
             <tr>
               <th>Код</th>
+              <th>Тип</th>
               <th>Скидка</th>
               <th>Статус</th>
               <th>Использований</th>
               <th>Лимит</th>
-              <th>Истекает</th>
-              <th>Создан</th>
+              <th>Держатель</th>
               <th></th>
             </tr>
           </thead>
@@ -133,8 +192,58 @@
   requireAuth();
   loadAdminInfo();
 
+  let promoKind = '';
+
+  window.setPromoFilter = function(kind) {
+    promoKind = kind;
+    loadPromos();
+  };
+
+  async function loadReferralSettings() {
+    const res = await apiFetch('/api/admin/referral-settings');
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById('rsEnabled').checked = !!s.program_enabled;
+    document.getElementById('rsSignupOn').checked = !!s.signup_bonus_enabled;
+    document.getElementById('rsInviteeOn').checked = !!s.invitee_bonus_enabled;
+    document.getElementById('rsCashbackOn').checked = !!s.purchase_cashback_enabled;
+    document.getElementById('rsDiscountOn').checked = !!s.buyer_discount_enabled;
+    document.getElementById('rsSelfPromo').checked = !!s.allow_self_promo;
+    document.getElementById('rsSignup').value = s.registration_bonus;
+    document.getElementById('rsInvitee').value = s.invitee_bonus || 0;
+    document.getElementById('rsCashback').value = s.purchase_cashback_percent;
+    document.getElementById('rsDiscount').value = s.discount_percent;
+    document.getElementById('rsMaxSpend').value = s.max_bonus_spend_percent;
+    document.getElementById('rsMinOrder').value = s.min_order_amount || 0;
+    document.getElementById('rsCashbackBase').value = s.cashback_base || 'paid';
+  }
+
+  window.saveReferralSettings = async function() {
+    const body = {
+      program_enabled: document.getElementById('rsEnabled').checked,
+      signup_bonus_enabled: document.getElementById('rsSignupOn').checked,
+      invitee_bonus_enabled: document.getElementById('rsInviteeOn').checked,
+      purchase_cashback_enabled: document.getElementById('rsCashbackOn').checked,
+      buyer_discount_enabled: document.getElementById('rsDiscountOn').checked,
+      allow_self_promo: document.getElementById('rsSelfPromo').checked,
+      registration_bonus: parseFloat(document.getElementById('rsSignup').value),
+      invitee_bonus: parseFloat(document.getElementById('rsInvitee').value),
+      purchase_cashback_percent: parseFloat(document.getElementById('rsCashback').value),
+      discount_percent: parseFloat(document.getElementById('rsDiscount').value),
+      max_bonus_spend_percent: parseFloat(document.getElementById('rsMaxSpend').value),
+      min_order_amount: parseFloat(document.getElementById('rsMinOrder').value),
+      cashback_base: document.getElementById('rsCashbackBase').value,
+    };
+    const res = await apiFetch('/api/admin/referral-settings', { method: 'PUT', body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.detail || 'Ошибка сохранения', 'error'); return; }
+    showToast('Настройки рефералки сохранены', 'success');
+    loadPromos();
+  };
+
   async function loadPromos() {
-    const res = await apiFetch('/api/admin/promo-codes');
+    const qs = promoKind ? `?kind=${encodeURIComponent(promoKind)}` : '';
+    const res = await apiFetch('/api/admin/promo-codes' + qs);
     if (!res.ok) {
       document.getElementById('promoBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);">Ошибка загрузки</td></tr>';
       return;
@@ -145,23 +254,28 @@
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">Промокодов пока нет</td></tr>';
       return;
     }
-    tbody.innerHTML = promos.map(p => `
+    tbody.innerHTML = promos.map(p => {
+      const isRef = p.kind === 'referral';
+      const delBtn = isRef
+        ? ''
+        : `<button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" onclick="deletePromo(${p.id}, '${p.code}')">Удалить</button>`;
+      return `
       <tr>
         <td><strong style="font-size:15px;letter-spacing:0.05em;">${p.code}</strong></td>
+        <td>${isRef ? '<span class="badge badge-yellow">Реферальный</span>' : '<span class="badge badge-gray">Ручной</span>'}</td>
         <td><span style="font-weight:700;color:var(--accent);">-${p.discount_percent}%</span></td>
         <td>${p.is_active ? '<span class="promo-badge-active">✓ Активен</span>' : '<span class="promo-badge-inactive">✗ Отключён</span>'}</td>
         <td>${p.used_count}</td>
         <td>${p.usage_limit ?? '∞'}</td>
-        <td>${p.expires_at ? new Date(p.expires_at).toLocaleDateString('ru-RU') : '—'}</td>
-        <td style="color:var(--text-muted);font-size:12px;">${new Date(p.created_at).toLocaleDateString('ru-RU')}</td>
+        <td style="font-size:12px;color:var(--text-sec);">${p.owner_email || '—'}</td>
         <td>
           <div style="display:flex;gap:6px;">
             <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="togglePromo(${p.id})">${p.is_active ? 'Отключить' : 'Включить'}</button>
-            <button class="btn btn-danger" style="padding:5px 10px;font-size:12px;" onclick="deletePromo(${p.id}, '${p.code}')">Удалить</button>
+            ${delBtn}
           </div>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   }
 
   window.togglePromo = async function(id) {
@@ -224,6 +338,7 @@
 
   enableOverlayClose(document.getElementById('createModal'), closeCreateModal);
 
+  loadReferralSettings();
   loadPromos();
 </script>
 </body>
