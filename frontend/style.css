@@ -2169,19 +2169,53 @@ a.checkout-submit-btn.auth-link {
     box-shadow: var(--shadow);
     padding: 20px;
 }
-.ref-text { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 16px; }
+.ref-text { font-size: 14px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 18px; }
+.ref-code-card {
+    text-align: center;
+    padding: 18px 16px 16px;
+    border-radius: 14px;
+    background: linear-gradient(160deg, #2E3359, #1a1d33);
+    color: #fff;
+    margin-bottom: 16px;
+}
+.ref-code-label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+.ref-code-value {
+    font-family: var(--font-title, inherit);
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    margin: 8px 0 12px;
+    word-break: break-all;
+}
+.ref-code-card .checkout-submit-btn { width: auto; margin: 0 auto; }
+.ref-hint { font-size: 12px; opacity: .8; margin: 12px 0 0; line-height: 1.45; }
+.ref-share { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.ref-share-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .ref-link-row { display: flex; gap: 8px; }
 .ref-link-row .chk-input { flex: 1; min-width: 0; }
-.ref-code { margin-top: 12px; font-size: 14px; color: var(--text-muted); }
-.ref-code b { color: var(--accent); font-size: 16px; }
+.ref-steps {
+    margin: 0 0 16px;
+    padding: 0 0 0 18px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+.ref-steps li { margin-bottom: 6px; }
+.ref-stat-row { display: flex; gap: 12px; }
 .ref-stat {
-    text-align: center; margin: 20px 0 8px;
-    padding: 16px; border-radius: 12px;
+    flex: 1;
+    text-align: center;
+    padding: 16px 10px;
+    border-radius: 12px;
     background: var(--accent-dim);
 }
-.ref-stat-num { font-size: 32px; font-weight: 800; color: var(--accent); font-family: var(--font-title); }
-.ref-stat-label { font-size: 13px; color: var(--text-muted); }
-.ref-note { font-size: 13px; color: var(--text-muted); margin: 0; text-align: center; }
+.ref-stat-num { font-size: 26px; font-weight: 800; color: var(--accent); font-family: var(--font-title); }
+.ref-stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.ref-note { font-size: 13px; color: var(--text-muted); margin: 12px 0 0; text-align: center; }
+@media (max-width: 560px) {
+  .ref-link-row { flex-direction: column; }
+  .ref-code-value { font-size: 26px; }
+}
 
 /* ── Бонусы ── */
 .bonus-summary {

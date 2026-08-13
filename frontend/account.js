@@ -88,7 +88,7 @@ if (nameInput && tg?.initDataUnsafe?.user) {
     try { localStorage.setItem('xtempls_ref', ref); } catch (e) {}
   }
   const refInput = document.getElementById('refCode');
-  if (refInput && ref) refInput.value = ref;
+  if (refInput && refInput.tagName === 'INPUT' && ref) refInput.value = ref;
   const hint = document.getElementById('refHint');
   if (hint && ref) {
     hint.hidden = false;
@@ -269,7 +269,7 @@ async function initAccount() {
   setupPassword();
   setupAddresses();
   setupFavorites();
-  setupReferral();
+  setupReferral(me);
   setupBonuses();
   setupNotifications();
 }
@@ -589,66 +589,122 @@ function favCard(f) {
 }
 
 // ─── Рефералка ─────────────────────────────────────────────────────────────
-async function setupReferral() {
-  const refLink = document.getElementById('refLink');
-  if (!refLink) return;
-  try {
-    const res = await apiFetch('/account/referral');
-    const data = await res.json();
-    refLink.value = data.referral_link;
-    const codeEl = document.getElementById('refCode');
-    if (codeEl) codeEl.textContent = data.promo_code || data.referral_code;
-    const invited = document.getElementById('invitedCount');
-    if (invited) invited.textContent = data.invited_count;
-    const earned = document.getElementById('refEarned');
-    if (earned) earned.textContent = fmtPrice(data.earned_total || 0);
-    const rules = document.getElementById('refRules');
-    if (rules) {
-      const parts = [];
-      if (data.program_enabled === false) {
-        parts.push('Реферальная программа сейчас отключена администратором.');
-      } else {
-        if (data.signup_bonus_enabled !== false) {
-          parts.push(`За регистрацию друга по ссылке вам начисляется <b>${fmtPrice(data.registration_bonus)}</b>.`);
-        }
-        if (data.invitee_bonus_enabled) {
-          parts.push(`Друг при регистрации получает <b>${fmtPrice(data.invitee_bonus)}</b>.`);
-        }
-        if (data.purchase_cashback_enabled !== false) {
-          parts.push(`Когда друг покупает по вашему промокоду — вам кэшбэк <b>${data.purchase_cashback_percent}%</b>.`);
-        }
-        if (data.buyer_discount_enabled !== false) {
-          parts.push(`Ему скидка <b>${data.discount_percent}%</b>.`);
-        }
-        parts.push('Свой промокод на свои покупки использовать нельзя.');
+function copyText(text, okMsg) {
+  const value = (text || '').trim();
+  if (!value || value === '—') { showToast('Код ещё загружается, подождите секунду'); return; }
+  const done = () => showToast(okMsg);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(value).then(done, () => {
+      try { document.execCommand('copy'); done(); } catch (e) { showToast(value); }
+    });
+  } else {
+    showToast(value);
+  }
+}
+
+function paintReferral(data) {
+  const origin = window.location.origin || '';
+  const code = (data.promo_code || data.referral_code || '').toString().trim().toUpperCase();
+  const siteLink = data.referral_link || (code ? `${origin}/register.html?ref=${code}` : '');
+  const botLink = data.bot_link || (code ? `https://t.me/xtempls_bot?start=${code}` : '');
+
+  const codeEl = document.getElementById('refPromoCode');
+  if (codeEl) codeEl.textContent = code || '—';
+  const siteEl = document.getElementById('refSiteLink');
+  if (siteEl) siteEl.value = siteLink;
+  const botEl = document.getElementById('refBotLink');
+  if (botEl) botEl.value = botLink;
+  const invited = document.getElementById('invitedCount');
+  if (invited) invited.textContent = data.invited_count ?? 0;
+  const earned = document.getElementById('refEarned');
+  if (earned) earned.textContent = fmtPrice(data.earned_total || 0);
+
+  const rules = document.getElementById('refRules');
+  if (rules) {
+    if (data.program_enabled === false) {
+      rules.textContent = 'Реферальная программа сейчас на паузе. Ссылку и код всё равно можно копировать — начисления включит магазин.';
+    } else {
+      const bits = [];
+      if (data.signup_bonus_enabled !== false) {
+        bits.push(`за регистрацию друга вам +${fmtPrice(data.registration_bonus)}`);
       }
-      rules.innerHTML = parts.join(' ');
+      if (data.invitee_bonus_enabled) {
+        bits.push(`друг тоже получает ${fmtPrice(data.invitee_bonus)}`);
+      }
+      if (data.purchase_cashback_enabled !== false) {
+        bits.push(`с каждой его покупки по вашему коду вам ${data.purchase_cashback_percent}% на бонусы`);
+      }
+      if (data.buyer_discount_enabled !== false) {
+        bits.push(`ему скидка ${data.discount_percent}%`);
+      }
+      rules.innerHTML = bits.length
+        ? `Как это работает: ${bits.join('; ')}. Бонусами можно оплатить заказ в корзине.`
+        : 'Делитесь ссылкой и промокодом — бонусы приходят на счёт в этом кабинете.';
     }
-    const botRow = document.getElementById('refBotRow');
-    const botLink = document.getElementById('refBotLink');
-    if (data.bot_link && botRow && botLink) {
-      botRow.hidden = false;
-      botLink.value = data.bot_link;
-    }
-  } catch (e) {}
-  const copy = (input, label) => {
-    if (!input) return;
-    input.select();
-    navigator.clipboard?.writeText(input.value).then(
-      () => showToast(label),
-      () => { document.execCommand('copy'); showToast(label); }
-    );
+  }
+}
+
+async function setupReferral(me) {
+  const box = document.getElementById('tab-referral');
+  if (!box || box.dataset.refReady === '1') return;
+  box.dataset.refReady = '1';
+
+  const fallback = {
+    referral_code: me?.referral_code || '',
+    promo_code: me?.referral_code || '',
+    invited_count: 0,
+    earned_total: 0,
+    program_enabled: true,
+    signup_bonus_enabled: true,
+    purchase_cashback_enabled: true,
+    buyer_discount_enabled: true,
+    registration_bonus: 100,
+    purchase_cashback_percent: 5,
+    discount_percent: 5,
   };
-  document.getElementById('copyRefBtn')?.addEventListener('click', () => copy(refLink, 'Ссылка скопирована'));
+  paintReferral(fallback);
+
+  try {
+    const [refRes, cfgRes] = await Promise.all([
+      apiFetch('/account/referral'),
+      fetch(`${API}/config`).catch(() => null),
+    ]);
+    const data = refRes.ok ? await refRes.json() : {};
+    if (cfgRes && cfgRes.ok) {
+      const cfg = await cfgRes.json();
+      const botName = (cfg.telegram_bot_username || '').replace(/^@/, '');
+      const code = data.promo_code || data.referral_code || fallback.promo_code;
+      if (botName && code && !data.bot_link) {
+        data.bot_link = `https://t.me/${botName}?start=${code}`;
+      }
+      if (cfg.referral && typeof cfg.referral === 'object') {
+        Object.assign(data, {
+          program_enabled: cfg.referral.program_enabled ?? data.program_enabled,
+          registration_bonus: cfg.referral.registration_bonus ?? data.registration_bonus,
+          purchase_cashback_percent: cfg.referral.purchase_cashback_percent ?? data.purchase_cashback_percent,
+          discount_percent: cfg.referral.discount_percent ?? data.discount_percent,
+        });
+      }
+    }
+    if (!data.promo_code && !data.referral_code) data.promo_code = fallback.promo_code;
+    paintReferral(data);
+    if (!refRes.ok) {
+      const err = document.getElementById('refLoadError');
+      if (err) { err.hidden = false; err.textContent = 'Не удалось обновить статистику, код и ссылки всё равно можно копировать.'; }
+    }
+  } catch (e) {
+    const err = document.getElementById('refLoadError');
+    if (err) { err.hidden = false; err.textContent = 'Сеть моргнула — показан ваш код из профиля.'; }
+  }
+
   document.getElementById('copyPromoBtn')?.addEventListener('click', () => {
-    const code = document.getElementById('refCode')?.textContent || '';
-    navigator.clipboard?.writeText(code).then(
-      () => showToast('Промокод скопирован'),
-      () => showToast(code)
-    );
+    copyText(document.getElementById('refPromoCode')?.textContent, 'Промокод скопирован');
+  });
+  document.getElementById('copyRefBtn')?.addEventListener('click', () => {
+    copyText(document.getElementById('refSiteLink')?.value, 'Ссылка на сайт скопирована');
   });
   document.getElementById('copyBotBtn')?.addEventListener('click', () => {
-    copy(document.getElementById('refBotLink'), 'Ссылка на бота скопирована');
+    copyText(document.getElementById('refBotLink')?.value, 'Ссылка на бота скопирована');
   });
 }
 

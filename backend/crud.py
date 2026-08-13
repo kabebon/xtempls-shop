@@ -1203,8 +1203,17 @@ async def remove_favorite(db: AsyncSession, user_id: int, product_id: int) -> bo
 async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
     """Код, ссылки (сайт + бот), число приглашённых и правила программы."""
     user = await get_user(db, user_id)
+    if not user:
+        return {
+            "referral_code": "",
+            "promo_code": "",
+            "referral_link": "/register.html",
+            "bot_link": None,
+            "invited_count": 0,
+            "earned_total": 0,
+        }
     base_url = (settings.webapp_url or "").rstrip("/")
-    code = user.referral_code
+    code = (user.referral_code or "").upper()
     invited_count = (
         await db.execute(select(func.count()).select_from(User).where(User.referred_by_id == user_id))
     ).scalar() or 0

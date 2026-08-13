@@ -6,7 +6,7 @@
   <title>XTEMPLS Admin — Промокоды</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=1.0.2" />
+  <link rel="stylesheet" href="style.css?v=1.0.3" />
 </head>
 <body>
 <div class="app-layout">
@@ -66,58 +66,96 @@
     </div>
 
     <div class="page-body">
-      <div class="card" style="padding:20px;margin-bottom:16px;">
-        <div style="font-weight:700;margin-bottom:12px;">Реферальная программа — все правила</div>
-        <div style="display:flex;flex-wrap:wrap;gap:14px 22px;margin-bottom:16px;">
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsEnabled" /> Программа включена
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsSignupOn" /> Бонус держателю за регистрацию
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsInviteeOn" /> Бонус приглашённому
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsCashbackOn" /> Кэшбэк держателю с покупки
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsDiscountOn" /> Скидка покупателю по промокоду
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
-            <input type="checkbox" id="rsSelfPromo" /> Разрешить свой промокод
-          </label>
+      <div class="card ref-admin">
+        <div class="ref-admin-head">
+          <div>
+            <div class="ref-admin-title">Как устроена рефералка</div>
+            <p class="ref-admin-lead">Клиент в кабинете видит свой код и две ссылки. Друг регистрируется по ссылке и/или покупает по коду. Ниже — что именно начислять. Ручные промокоды (SUMMER10 и т.п.) этими тумблерами не трогаются.</p>
+          </div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-          <label class="form-label">Бонус держателю за регистрацию, ₽
+
+        <div class="ref-preview" id="refPreview"></div>
+
+        <div class="ref-admin-grid">
+          <label class="ref-switch">
+            <input type="checkbox" id="rsEnabled" />
+            <span>
+              <b>Рефералка включена</b>
+              <small>Выключите — коды остаются, но бонусы и скидка по реф. коду не работают.</small>
+            </span>
+          </label>
+
+          <label class="ref-switch">
+            <input type="checkbox" id="rsSignupOn" />
+            <span>
+              <b>Платить пригласившему за регистрацию друга</b>
+              <small>После того как друг подтвердил email. Сумма справа.</small>
+            </span>
+          </label>
+          <label class="form-label">Сколько начислить пригласившему, ₽
             <input class="form-input" type="number" min="0" step="1" id="rsSignup" />
           </label>
-          <label class="form-label">Бонус приглашённому, ₽
+
+          <label class="ref-switch">
+            <input type="checkbox" id="rsInviteeOn" />
+            <span>
+              <b>Подарок самому новому клиенту</b>
+              <small>Друг тоже получает бонусы за то, что пришёл по ссылке.</small>
+            </span>
+          </label>
+          <label class="form-label">Подарок новому клиенту, ₽
             <input class="form-input" type="number" min="0" step="1" id="rsInvitee" />
           </label>
-          <label class="form-label">Кэшбэк держателю с покупки, %
+
+          <label class="ref-switch">
+            <input type="checkbox" id="rsCashbackOn" />
+            <span>
+              <b>Кэшбэк пригласившему с покупок друга</b>
+              <small>Только если друг ввёл промокод пригласившего и заказ оплачен.</small>
+            </span>
+          </label>
+          <label class="form-label">Процент кэшбэка пригласившему
             <input class="form-input" type="number" min="0" max="100" step="1" id="rsCashback" />
           </label>
-          <label class="form-label">Скидка покупателю по реф. коду, %
+
+          <label class="ref-switch">
+            <input type="checkbox" id="rsDiscountOn" />
+            <span>
+              <b>Скидка другу за этот промокод</b>
+              <small>Сколько процентов списать с корзины друга.</small>
+            </span>
+          </label>
+          <label class="form-label">Скидка другу, %
             <input class="form-input" type="number" min="0" max="100" step="1" id="rsDiscount" />
           </label>
-          <label class="form-label">Макс. доля заказа бонусами, %
+
+          <label class="ref-switch">
+            <input type="checkbox" id="rsSelfPromo" />
+            <span>
+              <b>Разрешить применить свой код к своему заказу</b>
+              <small>Обычно выкл.: человек не делает себе скидку своим же реферальным кодом. Включайте только если так задумано.</small>
+            </span>
+          </label>
+
+          <label class="form-label">Сколько заказа можно закрыть бонусами, %
             <input class="form-input" type="number" min="0" max="100" step="1" id="rsMaxSpend" />
+            <small class="ref-field-hint">100 = можно оплатить заказ целиком с бонусного счёта.</small>
           </label>
-          <label class="form-label">Мин. сумма заказа для кэшбэка, ₽
+          <label class="form-label">Минимальная сумма заказа для кэшбэка, ₽
             <input class="form-input" type="number" min="0" step="1" id="rsMinOrder" />
+            <small class="ref-field-hint">Ниже этой суммы пригласивший ничего не получит.</small>
           </label>
-          <label class="form-label">База кэшбэка
+          <label class="form-label">С какой суммы считать кэшбэк
             <select class="form-input" id="rsCashbackBase">
-              <option value="paid">Оплаченная сумма (после бонусов)</option>
-              <option value="subtotal">Сумма товаров (после скидки)</option>
+              <option value="paid">С того, что друг реально заплатил картой</option>
+              <option value="subtotal">С суммы товаров после скидки (до списания бонусов)</option>
             </select>
           </label>
         </div>
-        <button class="btn btn-primary" style="margin-top:14px;" onclick="saveReferralSettings()">Сохранить настройки</button>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
-          Кэшбэк за покупку — после оплаты. Бонус за регистрацию — после подтверждения email.
-          Ручные промокоды (не реферальные) этими тумблерами не отключаются.
+
+        <div class="ref-admin-actions">
+          <button class="btn btn-primary" onclick="saveReferralSettings()">Сохранить правила</button>
+          <span class="ref-admin-note">Бонус за регистрацию — после подтверждения почты. Кэшбэк с покупки — после оплаты.</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -216,7 +254,50 @@
     document.getElementById('rsMaxSpend').value = s.max_bonus_spend_percent;
     document.getElementById('rsMinOrder').value = s.min_order_amount || 0;
     document.getElementById('rsCashbackBase').value = s.cashback_base || 'paid';
+    updateReferralPreview();
   }
+
+  function n(id) { return parseFloat(document.getElementById(id).value) || 0; }
+  function on(id) { return document.getElementById(id).checked; }
+
+  window.updateReferralPreview = function() {
+    const el = document.getElementById('refPreview');
+    if (!el) return;
+    if (!on('rsEnabled')) {
+      el.className = 'ref-preview off';
+      el.innerHTML = '<b>Программа выключена.</b> Клиенты по-прежнему видят свой код, но скидка и бонусы по рефералке не начисляются. Обычные промокоды (из таблицы ниже) работают как раньше.';
+      return;
+    }
+    const parts = ['<b>Пример:</b> Аня отправила код другу Максиму.'];
+    if (on('rsSignupOn') && n('rsSignup') > 0) {
+      parts.push(`Максим зарегистрировался и подтвердил почту → Ане <b>+${n('rsSignup')} ₽</b> на бонусы.`);
+    } else {
+      parts.push('За саму регистрацию Аня ничего не получает.');
+    }
+    if (on('rsInviteeOn') && n('rsInvitee') > 0) {
+      parts.push(`Максим тоже получает <b>${n('rsInvitee')} ₽</b> на свой счёт.`);
+    }
+    if (on('rsDiscountOn') && n('rsDiscount') > 0) {
+      parts.push(`Максим вводит код Ани в корзине → скидка <b>${n('rsDiscount')}%</b>.`);
+    } else {
+      parts.push('Промокод Ани другу скидку не даёт (только если включите скидку).');
+    }
+    if (on('rsCashbackOn') && n('rsCashback') > 0) {
+      const base = document.getElementById('rsCashbackBase').value === 'subtotal'
+        ? 'суммы товаров после скидки'
+        : 'той суммы, которую Максим оплатил картой';
+      const min = n('rsMinOrder');
+      parts.push(`После оплаты Ане кэшбэк <b>${n('rsCashback')}%</b> с ${base}${min > 0 ? `, если заказ от ${min} ₽` : ''}.`);
+    } else {
+      parts.push('С покупок друга Аня кэшбэк не получает.');
+    }
+    parts.push(on('rsSelfPromo')
+      ? '<b>Внимание:</b> Аня сможет ввести свой код на свой заказ и получить скидку сама себе.'
+      : 'Аня свой код на свой заказ применить не может.');
+    parts.push(`Бонусами можно закрыть до <b>${n('rsMaxSpend')}%</b> своего заказа.`);
+    el.className = 'ref-preview';
+    el.innerHTML = parts.join(' ');
+  };
 
   window.saveReferralSettings = async function() {
     const body = {
@@ -238,6 +319,7 @@
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { showToast(data.detail || 'Ошибка сохранения', 'error'); return; }
     showToast('Настройки рефералки сохранены', 'success');
+    updateReferralPreview();
     loadPromos();
   };
 
@@ -340,6 +422,10 @@
 
   loadReferralSettings();
   loadPromos();
+  document.querySelectorAll('.ref-admin input, .ref-admin select').forEach((el) => {
+    el.addEventListener('input', updateReferralPreview);
+    el.addEventListener('change', updateReferralPreview);
+  });
 </script>
 </body>
 </html>

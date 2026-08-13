@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.0.16" />
+  <link rel="stylesheet" href="style.css?v=1.0.17" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -148,39 +148,51 @@
 
   <section class="account-section" id="tab-referral">
     <div class="ref-box">
-      <h3 class="account-h3">Реферальная программа</h3>
-      <p class="ref-text" id="refRules">Делитесь ссылкой и промокодом с друзьями — получайте кэшбэк на бонусный счёт.</p>
+      <h3 class="account-h3">Приглашайте друзей — получайте бонусы</h3>
+      <p class="ref-text" id="refRules">Друг регистрируется по вашей ссылке и покупает по вашему промокоду. Вам на бонусный счёт капает кэшбэк, им можно оплачивать свои заказы.</p>
 
-      <h3 class="account-h3">Ваш промокод</h3>
-      <div class="ref-link-row">
-        <div class="ref-code" style="margin:0;flex:1;">Код: <b id="refCode"></b></div>
-        <button class="checkout-submit-btn" id="copyPromoBtn" type="button" style="margin:0; white-space:nowrap;">Копировать код</button>
+      <div class="ref-code-card">
+        <div class="ref-code-label">Ваш промокод</div>
+        <div class="ref-code-value" id="refPromoCode">—</div>
+        <button class="checkout-submit-btn" id="copyPromoBtn" type="button">Скопировать промокод</button>
+        <p class="ref-hint">Отправьте код другу. Он вводит его при оформлении заказа и получает скидку. Вам — кэшбэк после оплаты.</p>
       </div>
 
-      <h3 class="account-h3">Ссылка для регистрации на сайте</h3>
-      <div class="ref-link-row">
-        <input class="chk-input" id="refLink" readonly />
-        <button class="checkout-submit-btn" id="copyRefBtn" type="button" style="margin:0; white-space:nowrap;">Копировать</button>
-      </div>
-
-      <div id="refBotRow" hidden>
-        <h3 class="account-h3">Ссылка для регистрации в боте</h3>
-        <div class="ref-link-row">
-          <input class="chk-input" id="refBotLink" readonly />
-          <button class="checkout-submit-btn" id="copyBotBtn" type="button" style="margin:0; white-space:nowrap;">Копировать</button>
+      <div class="ref-share">
+        <div class="ref-share-item">
+          <div class="ref-share-title">Ссылка на регистрацию на сайте</div>
+          <div class="ref-link-row">
+            <input class="chk-input" id="refSiteLink" readonly placeholder="Загружаем…" />
+            <button class="checkout-submit-btn" id="copyRefBtn" type="button">Копировать</button>
+          </div>
+        </div>
+        <div class="ref-share-item" id="refBotRow">
+          <div class="ref-share-title">Ссылка в Telegram-боте</div>
+          <div class="ref-link-row">
+            <input class="chk-input" id="refBotLink" readonly placeholder="Загружаем…" />
+            <button class="checkout-submit-btn" id="copyBotBtn" type="button">Копировать</button>
+          </div>
         </div>
       </div>
 
-      <div class="ref-stat-row" style="display:flex;gap:24px;margin-top:20px;">
+      <ol class="ref-steps" id="refSteps">
+        <li>Скопируйте ссылку или промокод и отправьте другу.</li>
+        <li>Друг регистрируется по ссылке — вам начисляется бонус (после подтверждения почты).</li>
+        <li>Друг покупает с вашим промокодом — вам кэшбэк, ему скидка.</li>
+        <li>Бонусы тратите на свои заказы кнопкой «Списать бонусы».</li>
+      </ol>
+
+      <div class="ref-stat-row">
         <div class="ref-stat">
           <div class="ref-stat-num" id="invitedCount">0</div>
-          <div class="ref-stat-label">приглашено</div>
+          <div class="ref-stat-label">друзей зарегистрировалось</div>
         </div>
         <div class="ref-stat">
           <div class="ref-stat-num" id="refEarned">0 ₽</div>
-          <div class="ref-stat-label">заработано бонусами</div>
+          <div class="ref-stat-label">уже начислено вам</div>
         </div>
       </div>
+      <p class="ref-note" id="refLoadError" hidden></p>
     </div>
   </section>
 
@@ -213,6 +225,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="account.js?v=1.0.16"></script>
+<script src="account.js?v=1.0.17"></script>
 </body>
 </html>
