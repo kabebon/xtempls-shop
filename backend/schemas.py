@@ -498,6 +498,38 @@ class ReferralSettingsUpdate(BaseModel):
     cashback_base: Optional[str] = None
 
 
+class MetrikaSettingsOut(BaseModel):
+    counter_id: str = ""
+    oauth_token_set: bool = False
+
+
+class MetrikaSettingsUpdate(BaseModel):
+    counter_id: Optional[str] = Field(None, max_length=32)
+    oauth_token: Optional[str] = Field(None, max_length=300)
+
+
+class MetrikaLinkRow(BaseModel):
+    url: str
+    visits: int
+    users: int
+
+
+class MetrikaCampaignRow(BaseModel):
+    source: str
+    campaign: str
+    visits: int
+    users: int
+
+
+class MetrikaOverview(BaseModel):
+    visits: int = 0
+    users: int = 0
+    pageviews: int = 0
+    bounce_rate: float = 0
+    links: list[MetrikaLinkRow] = []
+    campaigns: list[MetrikaCampaignRow] = []
+
+
 class AdminBonusAdjust(BaseModel):
     amount: Decimal = Field(..., gt=0)
     type: str = Field(..., description="accrual | spend")

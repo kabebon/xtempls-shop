@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Аналитика</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.0.4" />
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">Дашборд</a>
+    <a class="nav-item" href="products.html">Товары</a>
+    <a class="nav-item" href="categories.html">Категории</a>
+    <a class="nav-item" href="orders.html">Заказы</a>
+    <a class="nav-item" href="trash.html">Корзина</a>
+    <a class="nav-item" href="subscribers.html">Подписчики</a>
+    <a class="nav-item" href="customers.html">Заказчики</a>
+    <a class="nav-item" href="pages.html">Тексты сайта</a>
+    <a class="nav-item active" href="analytics.html">Аналитика</a>
+    <a class="nav-item" href="promo.html">Промокоды</a>
+    <a class="nav-item" href="users.html">Администраторы</a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Аналитика сайта</div>
+      <select class="form-input" id="daysSelect" style="width:auto;">
+        <option value="7">7 дней</option>
+        <option value="30" selected>30 дней</option>
+        <option value="90">90 дней</option>
+      </select>
+    </div>
+    <div class="page-body">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="ref-admin-title" style="margin-bottom:8px;">Яндекс Метрика</div>
+        <p class="ref-admin-lead" style="margin-bottom:16px;">Счётчик ставится на витрину. Здесь — визиты и переходы по конкретным ссылкам (в том числе с UTM).</p>
+        <div class="ref-admin-grid">
+          <label class="form-label">Номер счётчика
+            <input class="form-input" id="counterId" placeholder="например 98765432" />
+          </label>
+          <label class="form-label">OAuth-токен
+            <input class="form-input" id="oauthToken" type="password" autocomplete="off" placeholder="оставьте пустым, если не меняете" />
+            <small class="ref-field-hint" id="tokenHint">Токен ещё не сохранён</small>
+          </label>
+        </div>
+        <div class="ref-admin-actions" style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="saveSettings()">Сохранить</button>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="metrikaStats">
+        <div class="stat-card"><div class="stat-value" id="mVisits">—</div><div class="stat-label">Визиты</div></div>
+        <div class="stat-card"><div class="stat-value" id="mUsers">—</div><div class="stat-label">Посетители</div></div>
+        <div class="stat-card"><div class="stat-value" id="mViews">—</div><div class="stat-label">Просмотры</div></div>
+        <div class="stat-card"><div class="stat-value" id="mBounce">—</div><div class="stat-label">Отказы, %</div></div>
+      </div>
+      <p id="metrikaError" class="ref-admin-lead" style="color:var(--danger);margin:12px 0;" hidden></p>
+
+      <div class="card" style="margin:16px 0;overflow-x:auto;">
+        <div class="ref-admin-title" style="margin-bottom:12px;">Переходы по ссылкам (с какой страницы зашли)</div>
+        <table class="promo-table">
+          <thead><tr><th>Ссылка</th><th>Визиты</th><th>Посетители</th></tr></thead>
+          <tbody id="linksBody"><tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted);">Нет данных</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="overflow-x:auto;">
+        <div class="ref-admin-title" style="margin-bottom:12px;">Кампании UTM</div>
+        <table class="promo-table">
+          <thead><tr><th>Источник</th><th>Кампания</th><th>Визиты</th><th>Посетители</th></tr></thead>
+          <tbody id="utmBody"><tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Нет данных</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js?v=1.0.4"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  async function loadSettings() {
+    const res = await apiFetch('/api/admin/metrika');
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById('counterId').value = s.counter_id || '';
+    document.getElementById('tokenHint').textContent = s.oauth_token_set
+      ? 'Токен сохранён. Вставьте новый, только если нужно заменить.'
+      : 'Токен ещё не сохранён';
+  }
+
+  window.saveSettings = async function() {
+    const body = { counter_id: document.getElementById('counterId').value.trim() };
+    const token = document.getElementById('oauthToken').value.trim();
+    if (token) body.oauth_token = token;
+    const res = await apiFetch('/api/admin/metrika', { method: 'PUT', body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.detail || 'Ошибка сохранения', 'error'); return; }
+    document.getElementById('oauthToken').value = '';
+    showToast('Сохранено', 'success');
+    await loadSettings();
+    await loadOverview();
+  };
+
+  function setErr(msg) {
+    const el = document.getElementById('metrikaError');
+    el.hidden = !msg;
+    el.textContent = msg || '';
+  }
+
+  async function loadOverview() {
+    setErr('');
+    const days = document.getElementById('daysSelect').value;
+    const res = await apiFetch('/api/admin/metrika/overview?days=' + days);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErr(data.detail || 'Не удалось загрузить статистику');
+      return;
+    }
+    document.getElementById('mVisits').textContent = data.visits ?? 0;
+    document.getElementById('mUsers').textContent = data.users ?? 0;
+    document.getElementById('mViews').textContent = data.pageviews ?? 0;
+    document.getElementById('mBounce').textContent = data.bounce_rate ?? 0;
+    const links = data.links || [];
+    document.getElementById('linksBody').innerHTML = links.length
+      ? links.map(r => `<tr><td style="word-break:break-all;">${escapeHtml(r.url)}</td><td>${r.visits}</td><td>${r.users}</td></tr>`).join('')
+      : '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted);">Пока нет визитов за период</td></tr>';
+    const camps = data.campaigns || [];
+    document.getElementById('utmBody').innerHTML = camps.length
+      ? camps.map(r => `<tr><td>${escapeHtml(r.source)}</td><td>${escapeHtml(r.campaign)}</td><td>${r.visits}</td><td>${r.users}</td></tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-muted);">Нет UTM-меток за период</td></tr>';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  document.getElementById('daysSelect').addEventListener('change', loadOverview);
+  (async () => { await loadSettings(); await loadOverview(); })();
+</script>
+</body>
+</html>

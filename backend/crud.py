@@ -1783,3 +1783,40 @@ async def update_site_page(db: AsyncSession, key: str, values: dict) -> Optional
     await db.commit()
     await db.refresh(page)
     return page
+
+
+# ─── Яндекс Метрика ──────────────────────────────────────────────────────────
+
+async def _get_app_setting_raw(db: AsyncSession, key: str):
+    result = await db.execute(select(AppSetting).where(AppSetting.key == key))
+    row = result.scalar_one_or_none()
+    return None if row is None else row.value
+
+
+async def _set_app_setting_raw(db: AsyncSession, key: str, value) -> None:
+    existing = await db.execute(select(AppSetting).where(AppSetting.key == key))
+    row = existing.scalar_one_or_none()
+    if row:
+        row.value = value
+    else:
+        db.add(AppSetting(key=key, value=value))
+
+
+async def get_metrika_settings(db: AsyncSession) -> dict:
+    counter = await _get_app_setting_raw(db, "metrika.counter_id")
+    token = await _get_app_setting_raw(db, "metrika.oauth_token")
+    counter_id = "" if counter is None else str(counter).strip()
+    oauth = "" if token is None else str(token).strip()
+    return {"counter_id": counter_id, "oauth_token": oauth}
+
+
+async def set_metrika_settings(db: AsyncSession, data: dict) -> dict:
+    current = await get_metrika_settings(db)
+    if "counter_id" in data and data["counter_id"] is not None:
+        current["counter_id"] = str(data["counter_id"]).strip()
+        await _set_app_setting_raw(db, "metrika.counter_id", current["counter_id"])
+    if "oauth_token" in data and data["oauth_token"]:
+        current["oauth_token"] = str(data["oauth_token"]).strip()
+        await _set_app_setting_raw(db, "metrika.oauth_token", current["oauth_token"])
+    await db.commit()
+    return current

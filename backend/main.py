@@ -189,15 +189,18 @@ async def public_config():
     need any hardcoded domain/contact info — everything comes from env vars.
     """
     ref = {}
+    metrika_id = ""
     try:
         async with AsyncSessionLocal() as db:
             ref = await crud.get_referral_settings(db)
+            metrika_id = (await crud.get_metrika_settings(db)).get("counter_id") or ""
     except Exception:
-        logger.exception("Не удалось прочитать настройки рефералки")
+        logger.exception("Не удалось прочитать публичные настройки сайта")
     return {
         "manager_username": settings.manager_username,
         "contact_telegram": settings.contact_telegram,
         "telegram_bot_username": settings.telegram_bot_username,
+        "metrika_counter_id": metrika_id,
         "referral": {
             "program_enabled": bool(ref.get("program_enabled", True)),
             "registration_bonus": str(ref.get("registration_bonus", 0)),
