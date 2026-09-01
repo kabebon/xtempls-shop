@@ -145,6 +145,8 @@ body {
   height: 100vh;
   z-index: 50;
   transition: transform var(--transition);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sidebar-logo {
@@ -257,6 +259,10 @@ body {
   margin-top: auto;
   padding: 16px;
   border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  background: var(--sidebar);
+  z-index: 2;
 }
 
 .admin-badge {
@@ -307,8 +313,10 @@ body {
   flex: 1;
   margin-left: var(--sidebar-w);
   min-height: 100vh;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -323,18 +331,43 @@ body {
   position: sticky;
   top: 0;
   z-index: 40;
+  min-width: 0;
 }
 
-.topbar-title { font-size: 18px; font-weight: 700; }
+.topbar-title { font-size: 18px; font-weight: 700; min-width: 0; }
+.topbar .form-input,
+.topbar .btn,
+.topbar select {
+  flex-shrink: 0;
+  max-width: 100%;
+}
 
-.page-content { padding: 24px 28px; flex: 1; }
+.page-content,
+.page-body {
+  padding: 24px 28px 40px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
 
 /* ── Stats Cards ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
   margin-bottom: 28px;
+  min-width: 0;
 }
 
 .stat-card {
@@ -855,6 +888,9 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .mobile-menu-toggle { display: inline-flex; }
   .topbar { padding: 14px 16px; }
   .topbar-title { font-size: 16px; }
+  .page-content,
+  .page-body { padding: 16px 16px 32px; }
+  .card { padding: 16px; }
 }
 
 /* ── Drag & Drop images ── */
