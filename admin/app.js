@@ -140,3 +140,38 @@ function initMobileSidebar() {
 }
 
 document.addEventListener('DOMContentLoaded', initMobileSidebar);
+document.addEventListener('DOMContentLoaded', initOrdersSubnav);
+
+/** Промокоды спрятаны в подменю «Заказы» — пункт виден только после клика/на странице заказов. */
+function initOrdersSubnav() {
+  document.querySelectorAll('a.nav-item[href="promo.html"]').forEach((el) => {
+    if (!el.classList.contains('nav-subitem')) el.style.display = 'none';
+  });
+  const orders = document.querySelector('a.nav-item[href="orders.html"]');
+  if (!orders || document.getElementById('ordersSubnav')) return;
+
+  const page = (location.pathname.split('/').pop() || '').toLowerCase();
+  const open = page === 'orders.html' || page === 'promo.html';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'nav-group' + (open ? ' open' : '');
+  wrap.id = 'ordersSubnav';
+  orders.parentNode.insertBefore(wrap, orders);
+  wrap.appendChild(orders);
+
+  const sub = document.createElement('div');
+  sub.className = 'nav-sub';
+  sub.innerHTML = `<a class="nav-item nav-subitem${page === 'promo.html' ? ' active' : ''}" href="promo.html">Промокоды</a>`;
+  wrap.appendChild(sub);
+
+  if (page === 'promo.html') {
+    orders.classList.remove('active');
+  }
+
+  orders.addEventListener('click', (e) => {
+    if (page === 'orders.html') {
+      e.preventDefault();
+      wrap.classList.toggle('open');
+    }
+  });
+}

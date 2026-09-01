@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>XTEMPLS — Подтверждение email</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
+  <link rel="stylesheet" href="style.css?v=1.0.13" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div id="statusBox" class="verify-status">
+      <div class="state-icon" id="statusIcon">⏳</div>
+      <h1 class="auth-title" id="statusTitle">Подтверждаем…</h1>
+      <p class="auth-subtitle" id="statusText">Проверяем вашу почту, секундочку.</p>
+      <div id="statusActions" style="display:none;">
+        <a href="/login.html" class="checkout-submit-btn auth-link" style="display:block; text-align:center; text-decoration:none;">Войти в личный кабинет</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+<a href="/" class="home-btn" title="На главную">
+  <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1V10"/>
+  </svg>
+</a>
+
+<script src="account.js?v=1.0.13"></script>
+</body>
+</html>

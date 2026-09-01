@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+import asyncio
 import logging
 
 from database import engine, settings, AsyncSessionLocal
@@ -11,9 +12,27 @@ import crud
 from routers import products, categories, admin as admin_router, orders as orders_router
 from routers.orders import promo_router
 from routers import payments as payments_router
+from routers import account as account_router
+from routers import pages as pages_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _stale_orders_loop():
+    """Фоновая задача: раз в час отменяет «брошенные» заказы (pending + new,
+    не оплачены дольше 24 часов). Не считается в личном кабинете и не копится
+    в админке. См. crud.cancel_stale_pending_orders."""
+    await asyncio.sleep(60)  # первая задержка — чтобы старт прошёл спокойно
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                cancelled = await crud.cancel_stale_pending_orders(db, older_than_hours=24)
+            if cancelled:
+                logger.info("♻️ Автоотмена: отменено %s брошенных заказов (pending>24ч)", cancelled)
+        except Exception:
+            logger.exception("Ошибка в _stale_orders_loop")
+        await asyncio.sleep(3600)
 
 
 async def seed_admin():
@@ -43,7 +62,13 @@ async def seed_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await seed_admin()
+    stale_task = asyncio.create_task(_stale_orders_loop())
     yield
+    stale_task.cancel()
+    try:
+        await stale_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 
@@ -76,6 +101,8 @@ app.include_router(admin_router.router, prefix="/api")
 app.include_router(orders_router.router, prefix="/api")
 app.include_router(promo_router, prefix="/api")
 app.include_router(payments_router.router, prefix="/api")
+app.include_router(account_router.router, prefix="/api")
+app.include_router(pages_router.router, prefix="/api")
 
 
 # ─── Перевод ошибок валидации pydantic на русский ────────────────────────────
@@ -93,6 +120,7 @@ _FIELD_LABELS = {
     "items": "Товары в заказе",
     "consent_accepted": "Согласие с офертой",
     "promo_code": "Промокод",
+    "bonus_spend": "Списание бонусов",
 }
 
 
@@ -160,7 +188,26 @@ async def public_config():
     Returns contact links and the manager username so the frontend doesn't
     need any hardcoded domain/contact info — everything comes from env vars.
     """
+    ref = {}
+    try:
+        async with AsyncSessionLocal() as db:
+            ref = await crud.get_referral_settings(db)
+    except Exception:
+        logger.exception("Не удалось прочитать настройки рефералки")
     return {
         "manager_username": settings.manager_username,
         "contact_telegram": settings.contact_telegram,
+        "telegram_bot_username": settings.telegram_bot_username,
+        "referral": {
+            "program_enabled": bool(ref.get("program_enabled", True)),
+            "registration_bonus": str(ref.get("registration_bonus", 0)),
+            "purchase_cashback_percent": str(ref.get("purchase_cashback_percent", 0)),
+            "discount_percent": str(ref.get("discount_percent", 0)),
+            "invitee_bonus": str(ref.get("invitee_bonus", 0)),
+            "signup_bonus_enabled": bool(ref.get("signup_bonus_enabled", True)),
+            "invitee_bonus_enabled": bool(ref.get("invitee_bonus_enabled", False)),
+            "purchase_cashback_enabled": bool(ref.get("purchase_cashback_enabled", True)),
+            "buyer_discount_enabled": bool(ref.get("buyer_discount_enabled", True)),
+            "min_order_amount": str(ref.get("min_order_amount", 0)),
+        },
     }

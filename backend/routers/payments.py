@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db, settings
+import crud
 from models import Order, PaymentStatus, OrderStatus
 from notifications import send_message
 
@@ -219,6 +220,12 @@ async def yoomoney_notify(
     order.payment_status = PaymentStatus.paid
     order.status = OrderStatus.in_progress
     await db.commit()
+
+    # Кэшбэк держателю реферального промокода (идемпотентно)
+    try:
+        await crud.grant_referral_purchase_cashback(db, order)
+    except Exception:
+        logger.exception("Не удалось начислить реферальный кэшбэк по заказу %s", order.id)
 
     # 4. Уведомляем менеджера
     await _notify_manager_paid(order, amount, operation_id, is_suspicious)

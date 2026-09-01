@@ -1,5 +1,5 @@
 import re
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, EmailStr
 from typing import Optional, List, Dict, Any
 from decimal import Decimal
 from datetime import datetime
@@ -211,6 +211,7 @@ class TgUserRegister(BaseModel):
     username: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    ref_code: Optional[str] = Field(None, max_length=32)
 
 
 class TgUserOut(BaseModel):
@@ -281,8 +282,10 @@ class OrderCreate(BaseModel):
     items: List[OrderItemCreate] = Field(default_factory=list)
     tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
     tg_init_data: Optional[str] = None
+    user_id: Optional[int] = None  # set from the optional Bearer token (logged-in user)
     order_type: OrderType = OrderType.catalog
     promo_code: Optional[str] = None  # promo code applied at checkout
+    bonus_spend: Optional[Decimal] = Field(None, ge=0)  # сколько бонусов списать
     consent_accepted: bool = Field(
         False,
         description="Customer must accept the offer & privacy policy to submit.",
@@ -335,6 +338,7 @@ class OrderOut(BaseModel):
     payment_status: str = "pending"
     payment_label: Optional[str] = None
     amount: Optional[Decimal] = None
+    bonus_spent: Decimal = Decimal("0")
     payment_url: Optional[str] = None  # генерируется на лету, не хранится в БД
     # Soft-delete (для админки — корзина)
     is_deleted: bool = False
@@ -379,6 +383,21 @@ class OrderNoteUpdate(BaseModel):
     admin_note: Optional[str] = Field(None, max_length=5000)
 
 
+class OrderAdminUpdate(BaseModel):
+    """Полное редактирование заказа из админки: контакты, адрес, комментарий,
+    сумма, статусы. Состав (OrderItem) намеренно не редактируется — менять
+    позиции задним числом рискованно. Все поля optional."""
+    customer_name: Optional[str] = Field(None, min_length=1, max_length=150)
+    customer_phone: Optional[str] = Field(None, max_length=30)
+    customer_telegram: Optional[str] = Field(None, max_length=100)
+    delivery_address: Optional[str] = Field(None, max_length=2000)
+    comment: Optional[str] = Field(None, max_length=5000)
+    amount: Optional[Decimal] = Field(None, ge=0)
+    status: Optional[str] = None  # new | in_progress | done | cancelled
+    payment_status: Optional[str] = None  # pending | paid | failed
+    admin_note: Optional[str] = Field(None, max_length=5000)
+
+
 class OrderListResponse(BaseModel):
     items: List[OrderOut]
     total: int
@@ -411,9 +430,25 @@ class PromoCodeOut(BaseModel):
     used_count: int
     expires_at: Optional[datetime] = None
     created_at: datetime
+    kind: str = "manual"
+    owner_user_id: Optional[int] = None
+    owner_email: Optional[str] = None
+    cashback_percent: Optional[int] = None
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _owner_email(cls, data):
+        if not isinstance(data, dict):
+            owner = getattr(data, "owner", None)
+            if owner is not None and getattr(owner, "email", None):
+                try:
+                    data.owner_email = owner.email
+                except Exception:
+                    pass
+        return data
 
 
 class PromoValidateRequest(BaseModel):
@@ -424,6 +459,56 @@ class PromoValidateResponse(BaseModel):
     valid: bool
     discount_percent: Optional[int] = None
     message: Optional[str] = None
+    is_referral: bool = False
+
+
+class ReferralSettings(BaseModel):
+    program_enabled: bool = True
+    signup_bonus_enabled: bool = True
+    registration_bonus: Decimal = Field(..., ge=0)
+    invitee_bonus_enabled: bool = False
+    invitee_bonus: Decimal = Field(Decimal("0"), ge=0)
+    welcome_bonus_enabled: bool = False
+    welcome_bonus: Decimal = Field(Decimal("0"), ge=0)
+    purchase_cashback_enabled: bool = True
+    purchase_cashback_percent: Decimal = Field(..., ge=0, le=100)
+    buyer_discount_enabled: bool = True
+    discount_percent: Decimal = Field(..., ge=0, le=100)
+    max_bonus_spend_percent: Decimal = Field(..., ge=0, le=100)
+    min_order_amount: Decimal = Field(Decimal("0"), ge=0)
+    allow_self_promo: bool = False
+    cashback_base: str = "paid"
+
+
+class ReferralSettingsUpdate(BaseModel):
+    program_enabled: Optional[bool] = None
+    signup_bonus_enabled: Optional[bool] = None
+    registration_bonus: Optional[Decimal] = Field(None, ge=0)
+    invitee_bonus_enabled: Optional[bool] = None
+    invitee_bonus: Optional[Decimal] = Field(None, ge=0)
+    welcome_bonus_enabled: Optional[bool] = None
+    welcome_bonus: Optional[Decimal] = Field(None, ge=0)
+    purchase_cashback_enabled: Optional[bool] = None
+    purchase_cashback_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    buyer_discount_enabled: Optional[bool] = None
+    discount_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    max_bonus_spend_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    min_order_amount: Optional[Decimal] = Field(None, ge=0)
+    allow_self_promo: Optional[bool] = None
+    cashback_base: Optional[str] = None
+
+
+class AdminBonusAdjust(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    type: str = Field(..., description="accrual | spend")
+    reason: Optional[str] = Field(None, max_length=200)
+
+    @field_validator("type")
+    @classmethod
+    def _tx_type(cls, v):
+        if v not in ("accrual", "spend"):
+            raise ValueError("type должен быть accrual или spend")
+        return v
 
 
 # ─── Image reorder ───────────────────────────────────────────────────────────────
@@ -435,3 +520,237 @@ class ImageReorderItem(BaseModel):
 
 class ImageReorderRequest(BaseModel):
     images: List[ImageReorderItem]
+
+
+# ─── Личный кабинет пользователя ─────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6, max_length=128)
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    ref_code: Optional[str] = Field(None, max_length=32)  # реферальный код пригласившего
+    tg_init_data: Optional[str] = None  # чтобы подтянуть pending_ref из /start CODE
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_verified: bool
+    bonus_balance: Decimal = Decimal("0")
+    referral_code: str
+    notification_prefs: Optional[Dict[str, bool]] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+# ─── Админка: заказчики (User) ───────────────────────────────────────────────
+
+class CustomerOut(BaseModel):
+    """Карточка заказчика для списка/детали в админке.
+    Содержит агрегат по заказам, чтобы не делать лишних запросов на фронте."""
+    id: int
+    email: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    is_verified: bool
+    is_active: bool
+    bonus_balance: Decimal = Decimal("0")
+    referral_code: str
+    referred_by_id: Optional[int] = None
+    referred_by_email: Optional[str] = None
+    invited_count: int = 0
+    created_at: datetime
+    orders_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class CustomerUpdate(BaseModel):
+    """Ручное редактирование заказчика из админки. email и пароль не меняем
+    (это опасно менять задним числом без подтверждения). Бонусы, верификация,
+    активность и контакты — ок."""
+    name: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    is_verified: Optional[bool] = None
+    is_active: Optional[bool] = None
+    bonus_balance: Optional[Decimal] = Field(None, ge=0)
+
+
+class CustomerListResponse(BaseModel):
+    items: List[CustomerOut]
+    total: int
+    page: int
+    pages: int
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class NotificationPrefs(BaseModel):
+    """Настройки уведомлений (email). Всё опционально — частичное обновление."""
+    order_updates: Optional[bool] = None
+    promo: Optional[bool] = None
+
+    class Config:
+        extra = "ignore"
+
+
+# ─── Адреса ──────────────────────────────────────────────────────────────────
+
+class AddressCreate(BaseModel):
+    label: Optional[str] = Field(None, max_length=50)
+    recipient: Optional[str] = Field(None, max_length=150)
+    phone: Optional[str] = Field(None, max_length=30)
+    city: Optional[str] = Field(None, max_length=100)
+    street: Optional[str] = Field(None, max_length=200)
+    house: Optional[str] = Field(None, max_length=20)
+    apt: Optional[str] = Field(None, max_length=20)
+    zip: Optional[str] = Field(None, max_length=20)
+    is_default: bool = False
+
+    @field_validator("phone")
+    @classmethod
+    def _validate_phone(cls, v):
+        return _normalize_phone(v)
+
+
+class AddressUpdate(AddressCreate):
+    pass
+
+
+class AddressOut(AddressCreate):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Избранное ───────────────────────────────────────────────────────────────
+
+class FavoriteProductOut(BaseModel):
+    """Краткая карточка товара в избранном (для отображения списка)."""
+    id: int
+    name: str
+    slug: str
+    price: Decimal
+    old_price: Optional[Decimal] = None
+    stock_status: StockStatus
+    primary_image: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FavoriteOut(BaseModel):
+    id: int
+    product_id: int
+    created_at: datetime
+    product: Optional[FavoriteProductOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ─── Рефералка ───────────────────────────────────────────────────────────────
+
+class ReferralOut(BaseModel):
+    referral_code: str
+    promo_code: str
+    referral_link: str
+    bot_link: Optional[str] = None
+    invited_count: int
+    link_clicks: int = 0
+    earned_total: Decimal = Decimal("0")
+    registration_bonus: Decimal = Decimal("0")
+    purchase_cashback_percent: Decimal = Decimal("0")
+    discount_percent: Decimal = Decimal("0")
+    program_enabled: bool = True
+    signup_bonus_enabled: bool = True
+    invitee_bonus_enabled: bool = False
+    invitee_bonus: Decimal = Decimal("0")
+    welcome_bonus_enabled: bool = False
+    welcome_bonus: Decimal = Decimal("0")
+    purchase_cashback_enabled: bool = True
+    buyer_discount_enabled: bool = True
+    min_order_amount: Decimal = Decimal("0")
+
+
+class ReferralClickIn(BaseModel):
+    code: str = Field(..., min_length=2, max_length=32)
+    path: Optional[str] = Field(None, max_length=300)
+
+
+class SitePageOut(BaseModel):
+    key: str
+    title: str
+    content: str
+    sort_order: int = 0
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SitePageUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    content: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+# ─── Бонусы ──────────────────────────────────────────────────────────────────
+
+class BonusTransactionOut(BaseModel):
+    id: int
+    amount: Decimal
+    reason: Optional[str] = None
+    type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BonusOut(BaseModel):
+    balance: Decimal
+    transactions: List[BonusTransactionOut]
+
+
+# ─── Заказы пользователя ─────────────────────────────────────────────────────
+
+class UserOrderListResponse(BaseModel):
+    items: List[OrderOut]
+    total: int
+    page: int
+    pages: int

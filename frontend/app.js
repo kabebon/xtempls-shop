@@ -13,6 +13,97 @@ if (tg) {
   document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || '#0a0a0a');
 }
 
+// Реферальный код из URL / Telegram start_param — живёт до регистрации.
+(function persistRef() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = params.get('ref') || params.get('startapp');
+    const fromTg = tg?.initDataUnsafe?.start_param;
+    const ref = (fromUrl || fromTg || '').toString().trim().toUpperCase();
+    if (ref) {
+      localStorage.setItem('xtempls_ref', ref);
+      const pingKey = 'xtempls_ref_ping_' + ref;
+      try {
+        if (!sessionStorage.getItem(pingKey)) {
+          sessionStorage.setItem(pingKey, '1');
+          fetch(`${API}/ref/click`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: ref, path: location.pathname + location.search }),
+          }).catch(() => {});
+        }
+      } catch (err) {}
+    }
+  } catch (e) {}
+})();
+
+window._favIds = new Set();
+
+async function loadFavoriteIds() {
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/account/favorites`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    window._favIds = new Set(
+      (data || []).map(f => f.product_id || f.product?.id).filter(Boolean)
+    );
+  } catch (e) {}
+}
+
+window.toggleFavorite = async function(productId, btn) {
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) {
+    showToast('Войдите, чтобы добавить в избранное');
+    setTimeout(() => { location.href = '/login.html'; }, 900);
+    return;
+  }
+  const on = btn.classList.contains('is-fav');
+  try {
+    const res = await fetch(`${API}/account/favorites/${productId}`, {
+      method: on ? 'DELETE' : 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (res.status === 401) {
+      showToast('Войдите, чтобы добавить в избранное');
+      setTimeout(() => { location.href = '/login.html'; }, 900);
+      return;
+    }
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Не удалось обновить избранное');
+      return;
+    }
+    if (on) {
+      btn.classList.remove('is-fav');
+      window._favIds.delete(productId);
+      if (btn.dataset.label) btn.textContent = btn.dataset.labelOff || '♡ В избранное';
+      showToast('Удалено из избранного');
+    } else {
+      btn.classList.add('is-fav');
+      window._favIds.add(productId);
+      if (btn.dataset.label) btn.textContent = btn.dataset.labelOn || '♥ В избранном';
+      showToast('Добавлено в избранное');
+    }
+  } catch (e) {
+    showToast('Ошибка соединения');
+  }
+};
+
+function favBtnHtml(productId) {
+  const on = window._favIds.has(productId);
+  return `<button type="button" class="fav-heart ${on ? 'is-fav' : ''}" data-fav-id="${productId}"
+    onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite(${productId}, this);"
+    aria-label="В избранное">♥</button>`;
+}
+
+function newBadgeHtml(p) {
+  return p && p.is_featured ? '<div class="new-badge">Новинка</div>' : '';
+}
+
 // Load public config early (non-blocking; links degrade gracefully if it fails)
 fetch(`${API}/config`)
   .then(r => r.ok ? r.json() : null)
@@ -217,12 +308,19 @@ window.openCheckout = function() {
   if (telegramEl && tg?.initDataUnsafe?.user?.username) {
     telegramEl.value = '@' + tg.initDataUnsafe.user.username;
   }
-  // Reset promo
+  // Reset promo / bonuses
   const promoInput = document.getElementById('chkPromo');
   const promoMsg = document.getElementById('promoMsg');
   if (promoInput) promoInput.value = '';
   if (promoMsg) { promoMsg.textContent = ''; promoMsg.className = 'promo-msg'; }
   window._appliedPromo = null;
+  window._bonusSpend = 0;
+  window._bonusBalance = 0;
+  const spendInput = document.getElementById('chkBonusSpend');
+  if (spendInput) spendInput.value = '';
+  const bonusMsg = document.getElementById('bonusSpendMsg');
+  if (bonusMsg) { bonusMsg.textContent = ''; bonusMsg.className = 'promo-msg'; }
+  loadCheckoutBonuses();
   updateCheckoutTotal();
   const checkoutModal = document.getElementById('checkoutModal');
   const checkoutBackdrop = document.getElementById('checkoutBackdrop');
@@ -240,21 +338,86 @@ window.backToCart = function() {
   openCart();
 };
 
+function checkoutBaseAfterPromo() {
+  const promo = window._appliedPromo;
+  const base = cartTotal();
+  if (!promo || !promo.discount_percent) return base;
+  const disc = Math.round(base * promo.discount_percent / 100);
+  return Math.max(0, base - disc);
+}
+
 function updateCheckoutTotal() {
   const totalEl = document.getElementById('checkoutTotal');
   const discEl = document.getElementById('checkoutDiscount');
   const promo = window._appliedPromo;
   const base = cartTotal();
-  if (promo) {
+  const afterPromo = checkoutBaseAfterPromo();
+  const spend = Math.min(Number(window._bonusSpend || 0), afterPromo, Number(window._bonusBalance || 0));
+  window._bonusSpend = spend;
+  const lines = [];
+  if (promo && promo.discount_percent) {
     const disc = Math.round(base * promo.discount_percent / 100);
-    const final = base - disc;
-    if (discEl) discEl.innerHTML = `<span class="promo-discount-line">Скидка ${promo.discount_percent}%: −${fmt(disc)}</span>`;
-    if (totalEl) totalEl.textContent = fmt(final);
-  } else {
-    if (discEl) discEl.innerHTML = '';
-    if (totalEl) totalEl.textContent = fmt(base);
+    lines.push(`<span class="promo-discount-line">Скидка ${promo.discount_percent}%: −${fmt(disc)}</span>`);
+  }
+  if (spend > 0) {
+    lines.push(`<span class="promo-discount-line">Бонусы: −${fmt(spend)}</span>`);
+  }
+  if (discEl) discEl.innerHTML = lines.join('<br>');
+  if (totalEl) totalEl.textContent = fmt(Math.max(0, afterPromo - spend));
+}
+
+async function loadCheckoutBonuses() {
+  const box = document.getElementById('bonusSpendBox');
+  if (!box) return;
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) {
+    box.style.display = 'none';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/account/bonuses`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { box.style.display = 'none'; return; }
+    const data = await res.json();
+    window._bonusBalance = Number(data.balance || 0);
+    const avail = document.getElementById('bonusAvailable');
+    if (avail) avail.textContent = fmt(window._bonusBalance);
+    box.style.display = window._bonusBalance > 0 ? '' : 'none';
+  } catch (e) {
+    box.style.display = 'none';
   }
 }
+
+window.toggleBonusSpend = function() {
+  const controls = document.getElementById('bonusSpendControls');
+  if (!controls) return;
+  const open = controls.style.display === 'none' || !controls.style.display;
+  controls.style.display = open ? 'flex' : 'none';
+  if (open) {
+    const input = document.getElementById('chkBonusSpend');
+    const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
+    if (input && !input.value) input.value = String(Math.floor(max));
+  }
+};
+
+window.applyBonusSpend = function() {
+  const input = document.getElementById('chkBonusSpend');
+  const msg = document.getElementById('bonusSpendMsg');
+  let val = Number(input?.value || 0);
+  if (Number.isNaN(val) || val < 0) val = 0;
+  const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
+  if (val > max) val = max;
+  window._bonusSpend = Math.round(val * 100) / 100;
+  if (input) input.value = String(window._bonusSpend);
+  if (msg) {
+    msg.textContent = window._bonusSpend > 0
+      ? `Спишем ${fmt(window._bonusSpend)} с бонусного счёта`
+      : 'Бонусы не списываются';
+    msg.className = 'promo-msg promo-ok';
+  }
+  updateCheckoutTotal();
+};
 
 window.applyPromo = async function() {
   const code = document.getElementById('chkPromo')?.value.trim();
@@ -262,14 +425,18 @@ window.applyPromo = async function() {
   if (!code) return;
   if (msg) msg.textContent = 'Проверяем...';
   try {
+    const token = localStorage.getItem('xtempls_token');
     const res = await fetch(`${API}/promo/validate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ code })
     });
     const data = await res.json();
     if (data.valid) {
-      window._appliedPromo = { code, discount_percent: data.discount_percent };
+      window._appliedPromo = { code, discount_percent: data.discount_percent || 0 };
       if (msg) { msg.textContent = data.message; msg.className = 'promo-msg promo-ok'; }
     } else {
       window._appliedPromo = null;
@@ -361,6 +528,31 @@ window.submitOrder = async function(e) {
     return;
   }
 
+  // Проверка авторизации: когда пользователь заполнил все поля и переходит
+  // к подтверждению заказа, проверяем авторизацию. Если не залогинен,
+  // сохраняем введённые данные формы и отправляем на страницу входа/регистрации.
+  if (!localStorage.getItem('xtempls_token')) {
+    try {
+      const checkoutData = {
+        name,
+        phone,
+        telegram: telegramRaw,
+        address,
+        comment,
+        consent,
+        promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+        bonus_spend: window._bonusSpend || 0,
+        return_url: window.location.pathname + window.location.search,
+        from_checkout: true,   // флаг: переход именно из оформления заказа
+        ts: Date.now()
+      };
+      localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
+    } catch (e) {}
+    showToast('Для завершения оформления заказа войдите или зарегистрируйтесь');
+    setTimeout(() => { location.href = '/login.html'; }, 1000);
+    return;
+  }
+
   const btn = document.getElementById('submitOrderBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Отправка...'; }
 
@@ -373,6 +565,7 @@ window.submitOrder = async function(e) {
       comment: comment || null,
       tg_init_data: tg?.initData || null,
       promo_code: window._appliedPromo?.code || null,
+      bonus_spend: window._bonusSpend > 0 ? window._bonusSpend : null,
       consent_accepted: true,
       items: cart.map(i => ({
         product_id: i.product_id,
@@ -383,7 +576,11 @@ window.submitOrder = async function(e) {
 
     const res = await fetch(`${API}/orders/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(localStorage.getItem('xtempls_token')
+          ? { 'Authorization': `Bearer ${localStorage.getItem('xtempls_token')}` } : {}),
+      },
       body: JSON.stringify(body)
     });
 
@@ -391,6 +588,28 @@ window.submitOrder = async function(e) {
     // иначе при не-JSON ответе (500 HTML) юзер видел «Ошибка соединения»
     // вместо реальной причины.
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('xtempls_token');
+        try {
+          const checkoutData = {
+            name,
+            phone,
+            telegram: telegramRaw,
+            address,
+            comment,
+            consent,
+            promo: window._appliedPromo ? window._appliedPromo.code : (document.getElementById('chkPromo')?.value.trim() || null),
+            bonus_spend: window._bonusSpend || 0,
+            return_url: window.location.pathname + window.location.search,
+            from_checkout: true,   // флаг: переход именно из оформления заказа
+            ts: Date.now()
+          };
+          localStorage.setItem('xtempls_checkout_intent', JSON.stringify(checkoutData));
+        } catch (e) {}
+        showToast('Ваш сеанс истёк. Пожалуйста, войдите снова');
+        setTimeout(() => { location.href = '/login.html'; }, 1200);
+        return;
+      }
       const err = await res.json().catch(() => ({}));
       console.error('Order submit failed:', res.status, err);
       showToast(err.detail || 'Ошибка отправки заказа');
@@ -538,6 +757,17 @@ function injectCartUI() {
               <button type="button" class="promo-apply-btn" onclick="applyPromo()">Применить</button>
             </div>
             <div id="promoMsg" class="promo-msg"></div>
+            <div id="bonusSpendBox" class="bonus-spend-box" style="display:none;">
+              <div class="bonus-spend-head">
+                <span>На бонусном счёте: <b id="bonusAvailable">0 ₽</b></span>
+                <button type="button" class="promo-apply-btn" onclick="toggleBonusSpend()">Списать бонусы</button>
+              </div>
+              <div id="bonusSpendControls" class="promo-row" style="display:none;margin-top:8px;">
+                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="1" placeholder="Сколько списать" />
+                <button type="button" class="promo-apply-btn" onclick="applyBonusSpend()">Применить</button>
+              </div>
+              <div id="bonusSpendMsg" class="promo-msg"></div>
+            </div>
             <label class="chk-label">Комментарий к заказу</label>
             <textarea id="chkComment" class="chk-input" placeholder="Пожелания и т.д." rows="2"></textarea>
             <label class="chk-consent-row">
@@ -602,6 +832,64 @@ function initCartUI() {
   injectCartUI();
   reloadCart();
   updateCartBadge();
+  resumeCheckoutIfRequested();
+}
+
+// Возврат к оформлению после входа или регистрации. После успешного входа
+// пользователя возвращают обратно с ?checkout=1. Открываем форму и восстанавливаем
+// все поля, которые пользователь заполнил до авторизации.
+function resumeCheckoutIfRequested() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('checkout') !== '1') return;
+  // Чистим параметр из URL, чтобы при перезагрузке форма не открывалась снова.
+  params.delete('checkout');
+  const clean = params.toString();
+  history.replaceState(null, '', window.location.pathname + (clean ? '?' + clean : ''));
+  // Возобновляем только если залогинен и корзина не пуста.
+  if (!localStorage.getItem('xtempls_token') || cart.length === 0) return;
+  openCheckout();
+
+  // Восстанавливаем сохранённые данные полей формы оформления заказа
+  const raw = localStorage.getItem('xtempls_checkout_intent');
+  if (raw) {
+    try {
+      const intent = JSON.parse(raw);
+      const fresh = intent && intent.ts && (Date.now() - intent.ts) < 24 * 3600 * 1000;
+      if (fresh) {
+        const nameEl = document.getElementById('chkName');
+        const phoneEl = document.getElementById('chkPhone');
+        const tgEl = document.getElementById('chkTelegram');
+        const addrEl = document.getElementById('chkAddress');
+        const commEl = document.getElementById('chkComment');
+        const consEl = document.getElementById('chkConsent');
+        const promoEl = document.getElementById('chkPromo');
+
+        if (nameEl && intent.name) nameEl.value = intent.name;
+        if (phoneEl && intent.phone) phoneEl.value = intent.phone;
+        if (tgEl && intent.telegram !== undefined) tgEl.value = intent.telegram || '';
+        if (addrEl && intent.address) addrEl.value = intent.address;
+        if (commEl && intent.comment !== undefined) commEl.value = intent.comment || '';
+        if (consEl && intent.consent !== undefined) consEl.checked = !!intent.consent;
+        if (promoEl && intent.promo) {
+          promoEl.value = intent.promo;
+          setTimeout(() => {
+            if (typeof window.applyPromo === 'function') window.applyPromo();
+          }, 100);
+        }
+        if (intent.bonus_spend) {
+          window._bonusSpend = Number(intent.bonus_spend) || 0;
+          const spendEl = document.getElementById('chkBonusSpend');
+          if (spendEl) spendEl.value = String(window._bonusSpend);
+          const controls = document.getElementById('bonusSpendControls');
+          if (controls) controls.style.display = 'flex';
+          setTimeout(() => {
+            if (typeof window.applyBonusSpend === 'function') window.applyBonusSpend();
+          }, 150);
+        }
+      }
+    } catch (e) {}
+    localStorage.removeItem('xtempls_checkout_intent');
+  }
 }
 
 if (document.body) {
@@ -681,6 +969,7 @@ if (isCatalogPage) {
   }
 
   let currentCategory = '';
+  let currentFeatured = false;
   let currentSearch = '';
   let searchTimeout;
   let currentPage = 1;
@@ -719,9 +1008,9 @@ if (isCatalogPage) {
 
     return `
       <div class="s-services-type-5__item js-catalog__item sb-m-3-top sb-col_lg-4 sb-col_md-6 sb-col_sm-6 sb-col_xs-12" style="animation-delay:${delay}ms">
-        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer;" onclick="openProduct('${p.slug}', ${p.id})">
-          <div class="s-services-type-5__image sb-image-square">
-            ${imgHtml}
+        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
+          <div class="s-services-type-5__image sb-image-square" style="position:relative;">
+            ${newBadgeHtml(p)}${favBtnHtml(p.id)}${imgHtml}
           </div>
           <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
           ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
@@ -750,7 +1039,7 @@ if (isCatalogPage) {
       <div class="s-services-type-5__item sb-m-3-top sb-col_lg-3 sb-col_md-4 sb-col_sm-6 sb-col_xs-12">
         <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
           <div class="s-services-type-5__image sb-image-square" style="position:relative;">
-            ${badge}${imgHtml}
+            ${newBadgeHtml(p)}${badge}${favBtnHtml(p.id)}${imgHtml}
           </div>
           <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
           ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
@@ -775,6 +1064,15 @@ if (isCatalogPage) {
       allBtn.onclick = () => selectCategory('');
       if (catList) catList.appendChild(allBtn);
 
+      const newBtn = document.createElement('button');
+      newBtn.className = 'sb-button-secondary sb-font-p3 cat-btn';
+      newBtn.style.margin = '0 5px 10px';
+      newBtn.style.padding = '8px 16px';
+      newBtn.dataset.id = 'featured';
+      newBtn.textContent = 'Новинки';
+      newBtn.onclick = () => selectFeatured();
+      if (catList) catList.appendChild(newBtn);
+
       cats.forEach(cat => {
         const btn = document.createElement('button');
         btn.className = 'sb-button-secondary sb-font-p3 cat-btn';
@@ -791,19 +1089,31 @@ if (isCatalogPage) {
     }
   }
 
+  function markActiveChip(id) {
+    document.querySelectorAll('.cat-btn').forEach(b => {
+      if (String(b.dataset.id) === String(id)) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
   function selectCategory(id) {
     currentCategory = id;
+    currentFeatured = false;
     currentPage = 1;
     allProducts = [];
-    document.querySelectorAll('.cat-btn').forEach(b => {
-      if (String(b.dataset.id) === String(id)) {
-        b.classList.add('active');
-      } else {
-        b.classList.remove('active');
-      }
-    });
-    const showFeatured = !currentCategory && !currentSearch;
+    markActiveChip(id);
+    const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
     if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
+    loadProducts(true);
+  }
+
+  function selectFeatured() {
+    currentCategory = '';
+    currentFeatured = true;
+    currentPage = 1;
+    allProducts = [];
+    markActiveChip('featured');
+    if (featuredSection) featuredSection.style.display = 'none';
     loadProducts(true);
   }
 
@@ -820,6 +1130,7 @@ if (isCatalogPage) {
         per_page: 20,
       });
       if (currentCategory) params.append('category_id', currentCategory);
+      if (currentFeatured) params.append('featured', 'true');
       if (currentSearch) params.append('search', currentSearch);
 
       const res = await fetch(`${API}/products/?${params}`);
@@ -832,7 +1143,9 @@ if (isCatalogPage) {
       if (reset) {
         if (titleEl) {
           let activeCatName = 'Каталог';
-          if (currentCategory) {
+          if (currentFeatured) {
+            activeCatName = 'Новинки';
+          } else if (currentCategory) {
             const activeBtn = document.querySelector(`.cat-btn[data-id="${currentCategory}"]`);
             if (activeBtn) {
               activeCatName = activeBtn.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
@@ -884,7 +1197,7 @@ if (isCatalogPage) {
         // We do not have renderFeaturedCard function defined here safely, but let's assume it works or just skip it if it doesn't exist
         if (typeof renderFeaturedCard === 'function') {
            featuredRow.innerHTML = data.items.map(renderFeaturedCard).join('');
-           const showFeatured = !currentCategory && !currentSearch;
+           const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
            featuredSection.style.display = showFeatured ? 'block' : 'none';
         }
       }
@@ -901,7 +1214,7 @@ if (isCatalogPage) {
         currentSearch = searchInput.value.trim();
         currentPage = 1;
         allProducts = [];
-        const showFeatured = !currentCategory && !currentSearch;
+        const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
         if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
         loadProducts(true);
       }, 400);
@@ -920,7 +1233,11 @@ if (isCatalogPage) {
 
   // Init
   (async () => {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('featured') === '1') currentFeatured = true;
+    await loadFavoriteIds();
     await loadCategories();
+    if (currentFeatured) markActiveChip('featured');
     await loadFeatured();
     await loadProducts(true);
   })();
@@ -1254,6 +1571,16 @@ if (isProductPage) {
 
       document.title = `${p.name} — XTEMPLS`;
       productName.textContent = p.name;
+      if (p.is_featured) {
+        const exist = document.getElementById('newBadgeDetail');
+        if (!exist && productName.parentElement) {
+          const badge = document.createElement('span');
+          badge.id = 'newBadgeDetail';
+          badge.className = 'new-badge new-badge-inline';
+          badge.textContent = 'Новинка';
+          productName.insertAdjacentElement('afterend', badge);
+        }
+      }
 
       // Category
       if (p.category) {
@@ -1379,6 +1706,18 @@ if (isProductPage) {
         };
       }
 
+      const favDetail = document.getElementById('favDetailBtn');
+      if (favDetail) {
+        await loadFavoriteIds();
+        const on = window._favIds.has(p.id);
+        favDetail.dataset.label = '1';
+        favDetail.dataset.labelOff = '♡ В избранное';
+        favDetail.dataset.labelOn = '♥ В избранном';
+        favDetail.classList.toggle('is-fav', on);
+        favDetail.textContent = on ? favDetail.dataset.labelOn : favDetail.dataset.labelOff;
+        favDetail.onclick = () => toggleFavorite(p.id, favDetail);
+      }
+
       // contactBtn removed — manager contact is available via Telegram button in cart
 
     } catch (e) {
@@ -1389,3 +1728,30 @@ if (isProductPage) {
 
   loadProduct();
 }
+
+// ── Homepage novelties ────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  const section = document.getElementById('homeNovelties');
+  const row = document.getElementById('homeNoveltiesRow');
+  if (!section || !row) return;
+  try {
+    await loadFavoriteIds();
+    const res = await fetch(`${API}/products/?featured=true&per_page=8`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.items || !data.items.length) return;
+    section.style.display = '';
+    row.innerHTML = data.items.map(p => {
+      const img = p.primary_image
+        ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy">`
+        : `<div class="card-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;">🛍</div>`;
+      return `<a class="home-new-card" href="/product.html?id=${p.id}">
+        <div class="home-new-img">${newBadgeHtml(p)}${favBtnHtml(p.id)}${img}</div>
+        <div class="home-new-name">${p.name}</div>
+        <div class="home-new-price">${fmt(p.price)}</div>
+      </a>`;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load novelties', e);
+  }
+});

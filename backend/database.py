@@ -18,11 +18,22 @@ class Settings(BaseSettings):
     contact_telegram: str = ""       # public contact channel/@username shown in footer
     # Bot settings
     telegram_bot_token: str = ""
+    telegram_bot_username: str = ""   # без @, для t.me/<name>?start=REFCODE
     manager_chat_id: str = ""         # Может содержать несколько ID через запятую
     bot_secret: str = "bot-internal-secret"  # Секрет для внутренних вызовов bot→backend
     # ЮМани QuickPay
     yoomoney_wallet: str = ""         # номер кошелька (41001...)
     yoomoney_secret: str = ""         # секрет HTTP-уведомлений
+    # ── Личный кабинет: JWT для пользователей ──────────────────────────────────
+    user_access_token_expire_minutes: int = 43200  # 30 дней (для "запомнить меня")
+    # ── Email (SMTP). Если SMTP_HOST пуст — письма пишутся в лог/файл (заглушка
+    #    для локальной разработки). Заполни — код сам переключится на реальную отправку.
+    smtp_host: str = ""               # smtp.yandex.ru / smtp.mail.ru / smtp.brevo.com ...
+    smtp_port: int = 587
+    smtp_user: str = ""               # логин ящика, например noreply@xtempls.ru
+    smtp_password: str = ""           # пароль приложения (не пароль ящика!)
+    smtp_from: str = ""               # отображаемый From, например "XTEMPLS <noreply@xtempls.ru>"
+    smtp_use_tls: bool = True         # STARTTLS на 587
 
     class Config:
         env_file = ".env"

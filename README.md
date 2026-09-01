@@ -51,21 +51,37 @@ nano .env
 
 ### 3. SSL-сертификат (Let's Encrypt)
 
+HTTPS терминируется **внутри compose-nginx**. Сертификаты лежат на хосте в
+`/etc/letsencrypt` и монтируются в контейнер через симлинк `./nginx/ssl`.
+Порядок важен: сертификат надо выпустить **до** `docker compose up`, иначе
+nginx не стартует (SSL-блок ссылается на ещё не существующие `.pem`).
+
 ```bash
-mkdir -p nginx/ssl
+# Установите certbot на хост
+apt update && apt install -y certbot
 
-# Установите certbot если нет
-apt install certbot
+# Свяжите каталог для монтирования (compose монтирует ./nginx/ssl)
+ln -s /etc/letsencrypt ./nginx/ssl
+mkdir -p ./nginx/acme   # webroot для продления
 
-# Получите сертификат (временно остановите nginx если запущен)
-certbot certonly --standalone -d xtempls.ru -d www.xtempls.ru
+# Выпустите сертификат. ВАЖНО: A-запись домена уже должна указывать на этот
+# сервер, а порт 80 должен быть свободен (compose ещё не запущен).
+certbot certonly --standalone -d xtempls.ru -d www.xtempls.ru \
+  --agree-tos -m you@example.com --no-eff-email
 
-# Скопируйте сертификаты
-cp /etc/letsencrypt/live/xtempls.ru/fullchain.pem nginx/ssl/
-cp /etc/letsencrypt/live/xtempls.ru/privkey.pem nginx/ssl/
+# Проверьте, что симлинк «работает» изнутри проекта:
+ls ./nginx/ssl/live/xtempls.ru/fullchain.pem
 ```
 
-> **Для теста без домена** — уберите SSL-блок из `nginx/nginx.conf` и слушайте на 80.
+**Автопродление** (certbot renew + рестарт nginx, чтобы подхватить новые `.pem`):
+
+```bash
+echo "0 3 * * * certbot renew --quiet --deploy-hook 'docker restart xtempls_nginx'" \
+  | sudo tee /etc/cron.d/certbot-renew
+```
+
+> **Для теста без домена** — уберите SSL-блок (`listen 443 ssl`) из `nginx/nginx.conf`,
+> оставьте только `listen 80`, и в `docker-compose.yml` закомментируйте mount `./nginx/ssl`.
 
 ### 4. Запуск
 
@@ -131,11 +147,14 @@ docker compose up -d --build backend bot
 
 ### Обновление SSL-сертификата
 
+Происходит автоматически через cron (см. раздел «SSL» выше — `certbot renew` +
+`--deploy-hook 'docker restart xtempls_nginx'`). Копировать `.pem` вручную **не
+нужно**: контейнер читает сертификаты прямо из примонтированного `/etc/letsencrypt`.
+
+Ручная проверка продления:
+
 ```bash
-certbot renew
-cp /etc/letsencrypt/live/xtempls.ru/fullchain.pem nginx/ssl/
-cp /etc/letsencrypt/live/xtempls.ru/privkey.pem nginx/ssl/
-docker compose restart nginx
+certbot renew --dry-run
 ```
 
 ### Просмотр логов
@@ -189,6 +208,7 @@ FastAPI автоматически генерирует документацию
 | Переменная | Описание |
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Токен бота от @BotFather |
+| `TELEGRAM_BOT_USERNAME` | Username бота без @ (для реф. ссылки `t.me/name?start=CODE`) |
 | `WEBAPP_URL` | URL Mini App (`https://xtempls.ru`) |
 | `POSTGRES_USER` | Пользователь PostgreSQL |
 | `POSTGRES_PASSWORD` | Пароль PostgreSQL |

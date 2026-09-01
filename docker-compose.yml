@@ -63,12 +63,19 @@ services:
     container_name: xtempls_nginx
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8085:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend:/usr/share/nginx/html/app:ro
       - ./admin:/usr/share/nginx/html/admin:ro
       - uploads_data:/usr/share/nginx/html/uploads:ro
+      # Let's Encrypt сертификаты. ./nginx/ssl — симлинк на /etc/letsencrypt хоста
+      # (создаётся в runbook: ln -s /etc/letsencrypt ./nginx/ssl).
+      # Без SSL-блок nginx не стартует, поэтому сертификаты выпускаются ДО compose up.
+      - ./nginx/ssl:/etc/letsencrypt:ro
+      # ACME-challenge webroot для продления сертификатов через webroot-режим certbot.
+      - ./nginx/acme:/usr/share/nginx/html/acme:ro
     depends_on:
       - backend
     networks:

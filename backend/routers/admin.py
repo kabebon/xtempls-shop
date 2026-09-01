@@ -18,12 +18,18 @@ from schemas import (
     ProductCreate, ProductUpdate, ProductOut, ProductListResponse,
     StockUpdate, LoginRequest, TokenResponse, AdminUserOut,
     AdminUserCreate, AdminUserUpdate,
-    OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, BroadcastRequest,
+    OrderOut, OrderListResponse, OrderStatusUpdate, OrderNoteUpdate, OrderAdminUpdate, BroadcastRequest,
     PromoCodeCreate, PromoCodeOut, ImageReorderRequest,
     SubscriberOut, SubscriberListResponse,
+    CustomerOut, CustomerUpdate, CustomerListResponse,
+    ReferralSettings, ReferralSettingsUpdate, AdminBonusAdjust, BonusOut,
 )
-from models import AdminUser
+from models import AdminUser, BonusTxType
 from notifications import broadcast as tg_broadcast, get_broadcast_status
+from mailer import send_order_status_email
+import logging
+
+_admin_logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin"])
 
@@ -346,6 +352,17 @@ async def admin_update_order_status(
     order = await crud.update_order_status(db, order_id, data.status)
     if not order:
         raise HTTPException(status_code=400, detail="Неверный статус или заказ не найден")
+
+    # Email-уведомление пользователю о смене статуса, если заказ привязан к
+    # аккаунту с подтверждённой почтой и включённой настройкой order_updates.
+    user = getattr(order, "user", None)
+    if user and user.is_verified and user.email:
+        prefs = user.notification_prefs or {}
+        if prefs.get("order_updates", True):
+            try:
+                await send_order_status_email(user, order)
+            except Exception:
+                _admin_logger.exception("Не удалось отправить email по заказу #%s", order_id)
     return order
 
 
@@ -358,6 +375,25 @@ async def admin_update_order_note(
 ):
     """Сохраняет/обновляет внутренние заметки менеджера по заказу."""
     order = await crud.update_order_note(db, order_id, data.admin_note)
+    if not order:
+        raise HTTPException(status_code=404, detail="Заказ не найден")
+    return order
+
+
+@router.put("/admin/orders/{order_id}", response_model=OrderOut)
+async def admin_update_order(
+    order_id: int,
+    data: OrderAdminUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Полное редактирование заказа: контакты, адрес, комментарий, сумма,
+    статусы (status/payment_status), заметка менеджера. Состав (OrderItem)
+    не меняется. Старые эндпоинты /status и /note оставлены для совместимости."""
+    try:
+        order = await crud.update_order_admin(db, order_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
     return order
@@ -387,6 +423,62 @@ async def admin_restore_order(
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден в корзине")
     return order
+
+
+# ── Admin: Заказчики (User) ───────────────────────────────────────────
+
+@router.get("/admin/customers", response_model=CustomerListResponse)
+async def admin_list_customers(
+    page: int = 1,
+    per_page: int = 20,
+    search: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Список заказчиков (зарегистрированных аккаунтов личного кабинета).
+    Поиск по email/имени/телефону."""
+    return await crud.get_customers(db, page=page, per_page=per_page, search=search)
+
+
+@router.get("/admin/customers/{user_id}", response_model=CustomerOut)
+async def admin_get_customer(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    customer = await crud.get_customer(db, user_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    return customer
+
+
+@router.put("/admin/customers/{user_id}", response_model=CustomerOut)
+async def admin_update_customer(
+    user_id: int,
+    data: CustomerUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Ручное редактирование заказчика: контакты, верификация, активность,
+    бонусы. email и пароль не меняются."""
+    user = await crud.update_customer(db, user_id, data)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    customer = await crud.get_customer(db, user_id)
+    return customer
+
+
+@router.delete("/admin/customers/{user_id}", status_code=204)
+async def admin_delete_customer(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin)
+):
+    """Деактивация заказчика (is_active=False). Hard-delete не делаем — заказы и
+    история сохраняются, аккаунт просто не может войти."""
+    ok = await crud.deactivate_customer(db, user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
 
 
 # ── Admin: Broadcast ─────────────────────────────────────────────────
@@ -423,10 +515,19 @@ async def admin_broadcast_status(
 
 @router.get("/admin/promo-codes", response_model=List[PromoCodeOut])
 async def admin_list_promo_codes(
+    kind: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    return await crud.get_all_promo_codes(db)
+    promos = await crud.get_all_promo_codes(db, kind=kind)
+    out = []
+    for p in promos:
+        item = PromoCodeOut.model_validate(p)
+        owner = getattr(p, "owner", None)
+        if owner is not None:
+            item.owner_email = owner.email
+        out.append(item)
+    return out
 
 
 @router.post("/admin/promo-codes", response_model=PromoCodeOut, status_code=201)
@@ -450,7 +551,10 @@ async def admin_delete_promo_code(
     db: AsyncSession = Depends(get_db),
     _: AdminUser = Depends(get_current_admin)
 ):
-    await crud.delete_promo_code(db, promo_id)
+    try:
+        await crud.delete_promo_code(db, promo_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.patch("/admin/promo-codes/{promo_id}/toggle", response_model=PromoCodeOut)
@@ -463,6 +567,74 @@ async def admin_toggle_promo_code(
     if not promo:
         raise HTTPException(status_code=404, detail="Промокод не найден")
     return promo
+
+
+# ── Admin: Referral settings & bonus management ───────────────────────
+
+@router.get("/admin/referral-settings", response_model=ReferralSettings)
+async def admin_get_referral_settings(
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    return await crud.get_referral_settings(db)
+
+
+@router.put("/admin/referral-settings", response_model=ReferralSettings)
+async def admin_put_referral_settings(
+    data: ReferralSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    try:
+        return await crud.set_referral_settings(db, data.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/admin/customers/{user_id}/bonuses", response_model=BonusOut)
+async def admin_customer_bonuses(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    txs = await crud.list_bonus_transactions(db, user_id)
+    return {"balance": user.bonus_balance, "transactions": txs}
+
+
+@router.post("/admin/customers/{user_id}/bonuses", response_model=BonusOut)
+async def admin_adjust_customer_bonus(
+    user_id: int,
+    data: AdminBonusAdjust,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    reason = (data.reason or "").strip() or "Ручная операция из админки"
+    try:
+        tx_type = BonusTxType(data.type)
+        await crud.add_bonus_transaction(db, user_id, data.amount, reason=reason, tx_type=tx_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    user = await crud.get_user(db, user_id)
+    txs = await crud.list_bonus_transactions(db, user_id)
+    return {"balance": user.bonus_balance, "transactions": txs}
+
+
+@router.get("/admin/customers/{user_id}/referrals")
+async def admin_customer_referrals(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    user = await crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Заказчик не найден")
+    return await crud.list_customer_referrals(db, user_id)
 
 
 # ── Admin: Users ──────────────────────────────────────────────────────
