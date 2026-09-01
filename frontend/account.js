@@ -634,8 +634,6 @@ function paintReferral(data) {
   if (botEl) botEl.value = botLink;
   const invited = document.getElementById('invitedCount');
   if (invited) invited.textContent = data.invited_count ?? 0;
-  const clicks = document.getElementById('refClicks');
-  if (clicks) clicks.textContent = data.link_clicks ?? 0;
   const earned = document.getElementById('refEarned');
   if (earned) earned.textContent = fmtPrice(data.earned_total || 0);
 
