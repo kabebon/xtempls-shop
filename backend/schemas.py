@@ -468,6 +468,8 @@ class ReferralSettings(BaseModel):
     registration_bonus: Decimal = Field(..., ge=0)
     invitee_bonus_enabled: bool = False
     invitee_bonus: Decimal = Field(Decimal("0"), ge=0)
+    welcome_bonus_enabled: bool = False
+    welcome_bonus: Decimal = Field(Decimal("0"), ge=0)
     purchase_cashback_enabled: bool = True
     purchase_cashback_percent: Decimal = Field(..., ge=0, le=100)
     buyer_discount_enabled: bool = True
@@ -484,6 +486,8 @@ class ReferralSettingsUpdate(BaseModel):
     registration_bonus: Optional[Decimal] = Field(None, ge=0)
     invitee_bonus_enabled: Optional[bool] = None
     invitee_bonus: Optional[Decimal] = Field(None, ge=0)
+    welcome_bonus_enabled: Optional[bool] = None
+    welcome_bonus: Optional[Decimal] = Field(None, ge=0)
     purchase_cashback_enabled: Optional[bool] = None
     purchase_cashback_percent: Optional[Decimal] = Field(None, ge=0, le=100)
     buyer_discount_enabled: Optional[bool] = None
@@ -619,6 +623,9 @@ class NotificationPrefs(BaseModel):
     order_updates: Optional[bool] = None
     promo: Optional[bool] = None
 
+    class Config:
+        extra = "ignore"
+
 
 # ─── Адреса ──────────────────────────────────────────────────────────────────
 
@@ -670,7 +677,7 @@ class FavoriteOut(BaseModel):
     id: int
     product_id: int
     created_at: datetime
-    product: FavoriteProductOut
+    product: Optional[FavoriteProductOut] = None
 
     class Config:
         from_attributes = True
@@ -684,6 +691,7 @@ class ReferralOut(BaseModel):
     referral_link: str
     bot_link: Optional[str] = None
     invited_count: int
+    link_clicks: int = 0
     earned_total: Decimal = Decimal("0")
     registration_bonus: Decimal = Decimal("0")
     purchase_cashback_percent: Decimal = Decimal("0")
@@ -692,9 +700,33 @@ class ReferralOut(BaseModel):
     signup_bonus_enabled: bool = True
     invitee_bonus_enabled: bool = False
     invitee_bonus: Decimal = Decimal("0")
+    welcome_bonus_enabled: bool = False
+    welcome_bonus: Decimal = Decimal("0")
     purchase_cashback_enabled: bool = True
     buyer_discount_enabled: bool = True
     min_order_amount: Decimal = Decimal("0")
+
+
+class ReferralClickIn(BaseModel):
+    code: str = Field(..., min_length=2, max_length=32)
+    path: Optional[str] = Field(None, max_length=300)
+
+
+class SitePageOut(BaseModel):
+    key: str
+    title: str
+    content: str
+    sort_order: int = 0
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SitePageUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    content: Optional[str] = None
+    sort_order: Optional[int] = None
 
 
 # ─── Бонусы ──────────────────────────────────────────────────────────────────

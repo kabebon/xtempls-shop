@@ -20,9 +20,89 @@ if (tg) {
     const fromUrl = params.get('ref') || params.get('startapp');
     const fromTg = tg?.initDataUnsafe?.start_param;
     const ref = (fromUrl || fromTg || '').toString().trim().toUpperCase();
-    if (ref) localStorage.setItem('xtempls_ref', ref);
+    if (ref) {
+      localStorage.setItem('xtempls_ref', ref);
+      const pingKey = 'xtempls_ref_ping_' + ref;
+      try {
+        if (!sessionStorage.getItem(pingKey)) {
+          sessionStorage.setItem(pingKey, '1');
+          fetch(`${API}/ref/click`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: ref, path: location.pathname + location.search }),
+          }).catch(() => {});
+        }
+      } catch (err) {}
+    }
   } catch (e) {}
 })();
+
+window._favIds = new Set();
+
+async function loadFavoriteIds() {
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) return;
+  try {
+    const res = await fetch(`${API}/account/favorites`, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    window._favIds = new Set(
+      (data || []).map(f => f.product_id || f.product?.id).filter(Boolean)
+    );
+  } catch (e) {}
+}
+
+window.toggleFavorite = async function(productId, btn) {
+  const token = localStorage.getItem('xtempls_token');
+  if (!token) {
+    showToast('Войдите, чтобы добавить в избранное');
+    setTimeout(() => { location.href = '/login.html'; }, 900);
+    return;
+  }
+  const on = btn.classList.contains('is-fav');
+  try {
+    const res = await fetch(`${API}/account/favorites/${productId}`, {
+      method: on ? 'DELETE' : 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (res.status === 401) {
+      showToast('Войдите, чтобы добавить в избранное');
+      setTimeout(() => { location.href = '/login.html'; }, 900);
+      return;
+    }
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Не удалось обновить избранное');
+      return;
+    }
+    if (on) {
+      btn.classList.remove('is-fav');
+      window._favIds.delete(productId);
+      if (btn.dataset.label) btn.textContent = btn.dataset.labelOff || '♡ В избранное';
+      showToast('Удалено из избранного');
+    } else {
+      btn.classList.add('is-fav');
+      window._favIds.add(productId);
+      if (btn.dataset.label) btn.textContent = btn.dataset.labelOn || '♥ В избранном';
+      showToast('Добавлено в избранное');
+    }
+  } catch (e) {
+    showToast('Ошибка соединения');
+  }
+};
+
+function favBtnHtml(productId) {
+  const on = window._favIds.has(productId);
+  return `<button type="button" class="fav-heart ${on ? 'is-fav' : ''}" data-fav-id="${productId}"
+    onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite(${productId}, this);"
+    aria-label="В избранное">♥</button>`;
+}
+
+function newBadgeHtml(p) {
+  return p && p.is_featured ? '<div class="new-badge">Новинка</div>' : '';
+}
 
 // Load public config early (non-blocking; links degrade gracefully if it fails)
 fetch(`${API}/config`)
@@ -889,6 +969,7 @@ if (isCatalogPage) {
   }
 
   let currentCategory = '';
+  let currentFeatured = false;
   let currentSearch = '';
   let searchTimeout;
   let currentPage = 1;
@@ -927,9 +1008,9 @@ if (isCatalogPage) {
 
     return `
       <div class="s-services-type-5__item js-catalog__item sb-m-3-top sb-col_lg-4 sb-col_md-6 sb-col_sm-6 sb-col_xs-12" style="animation-delay:${delay}ms">
-        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer;" onclick="openProduct('${p.slug}', ${p.id})">
-          <div class="s-services-type-5__image sb-image-square">
-            ${imgHtml}
+        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
+          <div class="s-services-type-5__image sb-image-square" style="position:relative;">
+            ${newBadgeHtml(p)}${favBtnHtml(p.id)}${imgHtml}
           </div>
           <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
           ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
@@ -958,7 +1039,7 @@ if (isCatalogPage) {
       <div class="s-services-type-5__item sb-m-3-top sb-col_lg-3 sb-col_md-4 sb-col_sm-6 sb-col_xs-12">
         <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
           <div class="s-services-type-5__image sb-image-square" style="position:relative;">
-            ${badge}${imgHtml}
+            ${newBadgeHtml(p)}${badge}${favBtnHtml(p.id)}${imgHtml}
           </div>
           <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
           ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
@@ -983,6 +1064,15 @@ if (isCatalogPage) {
       allBtn.onclick = () => selectCategory('');
       if (catList) catList.appendChild(allBtn);
 
+      const newBtn = document.createElement('button');
+      newBtn.className = 'sb-button-secondary sb-font-p3 cat-btn';
+      newBtn.style.margin = '0 5px 10px';
+      newBtn.style.padding = '8px 16px';
+      newBtn.dataset.id = 'featured';
+      newBtn.textContent = 'Новинки';
+      newBtn.onclick = () => selectFeatured();
+      if (catList) catList.appendChild(newBtn);
+
       cats.forEach(cat => {
         const btn = document.createElement('button');
         btn.className = 'sb-button-secondary sb-font-p3 cat-btn';
@@ -999,19 +1089,31 @@ if (isCatalogPage) {
     }
   }
 
+  function markActiveChip(id) {
+    document.querySelectorAll('.cat-btn').forEach(b => {
+      if (String(b.dataset.id) === String(id)) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
   function selectCategory(id) {
     currentCategory = id;
+    currentFeatured = false;
     currentPage = 1;
     allProducts = [];
-    document.querySelectorAll('.cat-btn').forEach(b => {
-      if (String(b.dataset.id) === String(id)) {
-        b.classList.add('active');
-      } else {
-        b.classList.remove('active');
-      }
-    });
-    const showFeatured = !currentCategory && !currentSearch;
+    markActiveChip(id);
+    const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
     if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
+    loadProducts(true);
+  }
+
+  function selectFeatured() {
+    currentCategory = '';
+    currentFeatured = true;
+    currentPage = 1;
+    allProducts = [];
+    markActiveChip('featured');
+    if (featuredSection) featuredSection.style.display = 'none';
     loadProducts(true);
   }
 
@@ -1028,6 +1130,7 @@ if (isCatalogPage) {
         per_page: 20,
       });
       if (currentCategory) params.append('category_id', currentCategory);
+      if (currentFeatured) params.append('featured', 'true');
       if (currentSearch) params.append('search', currentSearch);
 
       const res = await fetch(`${API}/products/?${params}`);
@@ -1040,7 +1143,9 @@ if (isCatalogPage) {
       if (reset) {
         if (titleEl) {
           let activeCatName = 'Каталог';
-          if (currentCategory) {
+          if (currentFeatured) {
+            activeCatName = 'Новинки';
+          } else if (currentCategory) {
             const activeBtn = document.querySelector(`.cat-btn[data-id="${currentCategory}"]`);
             if (activeBtn) {
               activeCatName = activeBtn.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
@@ -1092,7 +1197,7 @@ if (isCatalogPage) {
         // We do not have renderFeaturedCard function defined here safely, but let's assume it works or just skip it if it doesn't exist
         if (typeof renderFeaturedCard === 'function') {
            featuredRow.innerHTML = data.items.map(renderFeaturedCard).join('');
-           const showFeatured = !currentCategory && !currentSearch;
+           const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
            featuredSection.style.display = showFeatured ? 'block' : 'none';
         }
       }
@@ -1109,7 +1214,7 @@ if (isCatalogPage) {
         currentSearch = searchInput.value.trim();
         currentPage = 1;
         allProducts = [];
-        const showFeatured = !currentCategory && !currentSearch;
+        const showFeatured = !currentCategory && !currentSearch && !currentFeatured;
         if (featuredSection) featuredSection.style.display = showFeatured ? 'block' : 'none';
         loadProducts(true);
       }, 400);
@@ -1128,7 +1233,11 @@ if (isCatalogPage) {
 
   // Init
   (async () => {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('featured') === '1') currentFeatured = true;
+    await loadFavoriteIds();
     await loadCategories();
+    if (currentFeatured) markActiveChip('featured');
     await loadFeatured();
     await loadProducts(true);
   })();
@@ -1462,6 +1571,16 @@ if (isProductPage) {
 
       document.title = `${p.name} — XTEMPLS`;
       productName.textContent = p.name;
+      if (p.is_featured) {
+        const exist = document.getElementById('newBadgeDetail');
+        if (!exist && productName.parentElement) {
+          const badge = document.createElement('span');
+          badge.id = 'newBadgeDetail';
+          badge.className = 'new-badge new-badge-inline';
+          badge.textContent = 'Новинка';
+          productName.insertAdjacentElement('afterend', badge);
+        }
+      }
 
       // Category
       if (p.category) {
@@ -1587,6 +1706,18 @@ if (isProductPage) {
         };
       }
 
+      const favDetail = document.getElementById('favDetailBtn');
+      if (favDetail) {
+        await loadFavoriteIds();
+        const on = window._favIds.has(p.id);
+        favDetail.dataset.label = '1';
+        favDetail.dataset.labelOff = '♡ В избранное';
+        favDetail.dataset.labelOn = '♥ В избранном';
+        favDetail.classList.toggle('is-fav', on);
+        favDetail.textContent = on ? favDetail.dataset.labelOn : favDetail.dataset.labelOff;
+        favDetail.onclick = () => toggleFavorite(p.id, favDetail);
+      }
+
       // contactBtn removed — manager contact is available via Telegram button in cart
 
     } catch (e) {
@@ -1597,3 +1728,30 @@ if (isProductPage) {
 
   loadProduct();
 }
+
+// ── Homepage novelties ────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  const section = document.getElementById('homeNovelties');
+  const row = document.getElementById('homeNoveltiesRow');
+  if (!section || !row) return;
+  try {
+    await loadFavoriteIds();
+    const res = await fetch(`${API}/products/?featured=true&per_page=8`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.items || !data.items.length) return;
+    section.style.display = '';
+    row.innerHTML = data.items.map(p => {
+      const img = p.primary_image
+        ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy">`
+        : `<div class="card-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;">🛍</div>`;
+      return `<a class="home-new-card" href="/product.html?id=${p.id}">
+        <div class="home-new-img">${newBadgeHtml(p)}${favBtnHtml(p.id)}${img}</div>
+        <div class="home-new-name">${p.name}</div>
+        <div class="home-new-price">${fmt(p.price)}</div>
+      </a>`;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load novelties', e);
+  }
+});

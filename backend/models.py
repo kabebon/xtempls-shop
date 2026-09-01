@@ -135,6 +135,7 @@ class User(Base):
     referral_code = Column(String(32), nullable=False, unique=True, index=True)
     bonus_balance = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
     referral_signup_bonus_paid = Column(Boolean, default=False, nullable=False, server_default="0")
+    welcome_bonus_paid = Column(Boolean, default=False, nullable=False, server_default="0")
     notification_prefs = Column(JSON, nullable=True)  # {"order_updates": bool, "promo": bool}
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -302,3 +303,26 @@ class AppSetting(Base):
     key = Column(String(80), primary_key=True)
     value = Column(JSON, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SitePage(Base):
+    """Редактируемые текстовые блоки витрины (оферта, политика, лояльность…)."""
+    __tablename__ = "site_pages"
+
+    key = Column(String(50), primary_key=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False, default="")
+    sort_order = Column(Integer, default=0, nullable=False, server_default="0")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ReferralClick(Base):
+    """Переходы по реферальной ссылке (?ref=CODE)."""
+    __tablename__ = "referral_clicks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referral_code = Column(String(32), nullable=False, index=True)
+    landing_path = Column(String(300), nullable=True)
+    ip_hash = Column(String(64), nullable=True, index=True)
+    user_agent = Column(String(300), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Тексты сайта</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.0.3" />
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">Дашборд</a>
+    <a class="nav-item" href="products.html">Товары</a>
+    <a class="nav-item" href="categories.html">Категории</a>
+    <a class="nav-item" href="orders.html">Заказы</a>
+    <a class="nav-item" href="trash.html">Корзина</a>
+    <a class="nav-item" href="subscribers.html">Подписчики</a>
+    <a class="nav-item" href="customers.html">Заказчики</a>
+    <a class="nav-item active" href="pages.html">Тексты сайта</a>
+    <a class="nav-item" href="promo.html">Промокоды</a>
+    <a class="nav-item" href="users.html">Администраторы</a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Тексты сайта</div>
+    </div>
+    <div class="page-body">
+      <p style="color:var(--text-muted);margin:0 0 16px;">Оферта, политика конфиденциальности и система лояльности. После сохранения текст сразу виден в уголке покупателя.</p>
+      <div id="pagesList"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js?v=1.0.3"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  async function loadPages() {
+    const box = document.getElementById('pagesList');
+    const res = await apiFetch('/api/pages');
+    if (!res.ok) {
+      box.innerHTML = '<div class="card">Не удалось загрузить тексты</div>';
+      return;
+    }
+    const pages = await res.json();
+    box.innerHTML = pages.map(p => `
+      <div class="card" style="margin-bottom:16px;" data-key="${p.key}">
+        <div class="form-group">
+          <label class="form-label">Заголовок</label>
+          <input class="form-input js-title" value="${(p.title || '').replace(/"/g, '&quot;')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">${p.title || p.key}</label>
+          <textarea class="form-input js-content" rows="16" style="min-height:240px;font-family:inherit;">${(p.content || '').replace(/</g, '&lt;')}</textarea>
+        </div>
+        <button class="btn btn-primary" onclick="savePage('${p.key}', this)">Сохранить</button>
+      </div>
+    `).join('');
+  }
+
+  window.savePage = async function(key, btn) {
+    const card = btn.closest('[data-key]');
+    const title = card.querySelector('.js-title').value.trim();
+    const content = card.querySelector('.js-content').value;
+    btn.disabled = true;
+    const res = await apiFetch('/api/admin/pages/' + key, {
+      method: 'PUT',
+      body: JSON.stringify({ title, content }),
+    });
+    btn.disabled = false;
+    if (res.ok) showToast('Сохранено', 'success');
+    else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка сохранения', 'error');
+    }
+  };
+
+  loadPages();
+</script>
+</body>
+</html>

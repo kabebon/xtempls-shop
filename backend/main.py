@@ -13,6 +13,7 @@ from routers import products, categories, admin as admin_router, orders as order
 from routers.orders import promo_router
 from routers import payments as payments_router
 from routers import account as account_router
+from routers import pages as pages_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ app.include_router(orders_router.router, prefix="/api")
 app.include_router(promo_router, prefix="/api")
 app.include_router(payments_router.router, prefix="/api")
 app.include_router(account_router.router, prefix="/api")
+app.include_router(pages_router.router, prefix="/api")
 
 
 # ─── Перевод ошибок валидации pydantic на русский ────────────────────────────

@@ -1,4 +1,5 @@
 import math
+import hashlib
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional, List
@@ -11,6 +12,7 @@ from models import (
     Category, Product, ProductImage, ProductSize, AdminUser, StockStatus, TgUser,
     Order, OrderItem, OrderStatus, OrderType, PaymentStatus, PromoCode, PromoKind,
     User, Address, Favorite, BonusTransaction, BonusTxType, AppSetting,
+    SitePage, ReferralClick,
 )
 from schemas import (
     CategoryCreate, CategoryUpdate,
@@ -945,6 +947,7 @@ async def verify_user(db: AsyncSession, token: str) -> Optional[User]:
     user.is_verified = True
     user.verification_token = None
     await db.flush()
+    await grant_welcome_bonus(db, user)
     await grant_referral_signup_bonus(db, user)
     await db.commit()
     await db.refresh(user)
@@ -1061,6 +1064,7 @@ async def update_customer(db: AsyncSession, user_id: int, data) -> Optional[User
         await db.commit()
         user = await db.get(User, user_id)
         if user and user.is_verified and not was_verified:
+            await grant_welcome_bonus(db, user)
             await grant_referral_signup_bonus(db, user)
             await db.commit()
             user = await db.get(User, user_id)
@@ -1210,6 +1214,7 @@ async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
             "referral_link": "/register.html",
             "bot_link": None,
             "invited_count": 0,
+            "link_clicks": 0,
             "earned_total": 0,
         }
     base_url = (settings.webapp_url or "").rstrip("/")
@@ -1239,6 +1244,7 @@ async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
         "referral_link": site_link,
         "bot_link": bot_link,
         "invited_count": invited_count,
+        "link_clicks": await count_referral_clicks(db, code),
         "earned_total": earned,
         "registration_bonus": ref_settings["registration_bonus"],
         "purchase_cashback_percent": ref_settings["purchase_cashback_percent"],
@@ -1247,6 +1253,8 @@ async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
         "signup_bonus_enabled": ref_settings.get("signup_bonus_enabled", True),
         "invitee_bonus_enabled": ref_settings.get("invitee_bonus_enabled", False),
         "invitee_bonus": ref_settings.get("invitee_bonus", 0),
+        "welcome_bonus_enabled": ref_settings.get("welcome_bonus_enabled", False),
+        "welcome_bonus": ref_settings.get("welcome_bonus", 0),
         "purchase_cashback_enabled": ref_settings.get("purchase_cashback_enabled", True),
         "buyer_discount_enabled": ref_settings.get("buyer_discount_enabled", True),
         "min_order_amount": ref_settings.get("min_order_amount", 0),
@@ -1386,6 +1394,8 @@ REFERRAL_SETTING_DEFAULTS = {
     "registration_bonus": Decimal("100"),          # ₽ держателю
     "invitee_bonus_enabled": False,                # бонус самому приглашённому
     "invitee_bonus": Decimal("0"),                 # ₽ приглашённому
+    "welcome_bonus_enabled": False,                # бонус каждому новому аккаунту (не только по реф. ссылке)
+    "welcome_bonus": Decimal("0"),                 # ₽ новому клиенту
     "purchase_cashback_enabled": True,             # кэшбэк держателю с покупки по промо
     "purchase_cashback_percent": Decimal("5"),     # %
     "buyer_discount_enabled": True,                # скидка покупателю по реф. промокоду
@@ -1399,6 +1409,7 @@ REFERRAL_SETTING_DEFAULTS = {
 _REF_SETTING_KEYS = {name: f"referral.{name}" for name in REFERRAL_SETTING_DEFAULTS}
 _BOOL_SETTINGS = {
     "program_enabled", "signup_bonus_enabled", "invitee_bonus_enabled",
+    "welcome_bonus_enabled",
     "purchase_cashback_enabled", "buyer_discount_enabled", "allow_self_promo",
 }
 _STR_SETTINGS = {"cashback_base"}
@@ -1485,6 +1496,25 @@ async def set_referral_settings(db: AsyncSession, data: dict) -> dict:
     )
     await db.commit()
     return current
+
+
+async def grant_welcome_bonus(db: AsyncSession, user: User) -> None:
+    """Бонус за регистрацию любому новому аккаунту (не только по реф. ссылке)."""
+    if not user or user.welcome_bonus_paid:
+        return
+    ref_settings = await get_referral_settings(db)
+    user.welcome_bonus_paid = True
+    if not ref_settings.get("welcome_bonus_enabled"):
+        return
+    amount = Decimal(ref_settings.get("welcome_bonus") or 0)
+    if amount <= 0:
+        return
+    await add_bonus_transaction(
+        db, user.id, amount,
+        reason="Бонус за регистрацию",
+        tx_type=BonusTxType.accrual,
+        commit=False,
+    )
 
 
 async def grant_referral_signup_bonus(db: AsyncSession, invitee: User) -> None:
@@ -1652,3 +1682,104 @@ async def list_customer_referrals(db: AsyncSession, user_id: int) -> list[dict]:
         }
         for u in rows
     ]
+
+
+# ─── Переходы по реферальной ссылке ──────────────────────────────────────────
+
+def _hash_ip(ip: Optional[str]) -> Optional[str]:
+    if not ip:
+        return None
+    raw = f"{ip}|{settings.secret_key}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+async def count_referral_clicks(db: AsyncSession, code: str) -> int:
+    if not code:
+        return 0
+    result = await db.execute(
+        select(func.count()).select_from(ReferralClick).where(
+            ReferralClick.referral_code == code.strip().upper()
+        )
+    )
+    return result.scalar() or 0
+
+
+async def track_referral_click(
+    db: AsyncSession,
+    code: str,
+    path: Optional[str] = None,
+    ip: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> bool:
+    """Записать переход. Повтор с того же IP по тому же коду в течение часа не дублируется."""
+    code = (code or "").strip().upper()
+    if not code or len(code) < 2:
+        return False
+    ip_hash = _hash_ip(ip)
+    if ip_hash:
+        since = datetime.now(timezone.utc) - timedelta(hours=1)
+        exists = await db.execute(
+            select(ReferralClick.id).where(
+                ReferralClick.referral_code == code,
+                ReferralClick.ip_hash == ip_hash,
+                ReferralClick.created_at >= since,
+            ).limit(1)
+        )
+        if exists.scalar_one_or_none():
+            return False
+    db.add(ReferralClick(
+        referral_code=code,
+        landing_path=(path or "")[:300] or None,
+        ip_hash=ip_hash,
+        user_agent=(user_agent or "")[:300] or None,
+    ))
+    await db.commit()
+    return True
+
+
+# ─── Текстовые блоки сайта ───────────────────────────────────────────────────
+
+async def seed_site_pages(db: AsyncSession) -> None:
+    from page_defaults import PAGE_DEFAULTS
+    existing = await db.execute(select(SitePage.key))
+    have = {row[0] for row in existing.all()}
+    added = False
+    for page in PAGE_DEFAULTS:
+        if page["key"] in have:
+            continue
+        db.add(SitePage(
+            key=page["key"],
+            title=page["title"],
+            content=page["content"],
+            sort_order=page.get("sort_order") or 0,
+        ))
+        added = True
+    if added:
+        await db.commit()
+
+
+async def list_site_pages(db: AsyncSession) -> list[SitePage]:
+    await seed_site_pages(db)
+    result = await db.execute(select(SitePage).order_by(SitePage.sort_order, SitePage.key))
+    return list(result.scalars().all())
+
+
+async def get_site_page(db: AsyncSession, key: str) -> Optional[SitePage]:
+    await seed_site_pages(db)
+    result = await db.execute(select(SitePage).where(SitePage.key == key))
+    return result.scalar_one_or_none()
+
+
+async def update_site_page(db: AsyncSession, key: str, values: dict) -> Optional[SitePage]:
+    page = await get_site_page(db, key)
+    if not page:
+        return None
+    if "title" in values and values["title"] is not None:
+        page.title = values["title"].strip()
+    if "content" in values and values["content"] is not None:
+        page.content = values["content"]
+    if "sort_order" in values and values["sort_order"] is not None:
+        page.sort_order = int(values["sort_order"])
+    await db.commit()
+    await db.refresh(page)
+    return page

@@ -250,10 +250,13 @@ async def list_favorites(
 ):
     favs = await crud.list_favorites(db, current_user.id)
     # Дозаполняем primary_image на уровне ORM-объекта, т.к. схема его ожидает.
+    visible = []
     for fav in favs:
-        if fav.product:
-            fav.product.primary_image = _primary_image(fav.product)
-    return favs
+        if not fav.product or not getattr(fav.product, "is_active", True):
+            continue
+        fav.product.primary_image = _primary_image(fav.product)
+        visible.append(fav)
+    return visible
 
 
 @router.post("/favorites/{product_id}", response_model=FavoriteOut, status_code=201)
@@ -315,10 +318,18 @@ def _default_prefs() -> dict:
     return {"order_updates": True, "promo": True}
 
 
+def _coerce_prefs(raw) -> dict:
+    prefs = dict(_default_prefs())
+    if isinstance(raw, dict):
+        for key in prefs:
+            if key in raw:
+                prefs[key] = bool(raw[key])
+    return prefs
+
+
 @router.get("/notifications", response_model=NotificationPrefs)
 async def get_notifications(current_user: User = Depends(get_current_user)):
-    prefs = current_user.notification_prefs or _default_prefs()
-    return NotificationPrefs(**{k: prefs.get(k, v) for k, v in _default_prefs().items()})
+    return NotificationPrefs(**_coerce_prefs(current_user.notification_prefs))
 
 
 @router.put("/notifications", response_model=NotificationPrefs)
@@ -327,8 +338,10 @@ async def update_notifications(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    current = current_user.notification_prefs or _default_prefs()
+    current = _coerce_prefs(current_user.notification_prefs)
     incoming = data.model_dump(exclude_unset=True)
-    current.update({k: v for k, v in incoming.items() if v is not None})
-    await crud.update_user(db, current_user.id, {"notification_prefs": current})
-    return NotificationPrefs(**current)
+    for key, value in incoming.items():
+        if key in current and value is not None:
+            current[key] = bool(value)
+    updated = await crud.update_user(db, current_user.id, {"notification_prefs": current})
+    return NotificationPrefs(**_coerce_prefs(updated.notification_prefs if updated else current))

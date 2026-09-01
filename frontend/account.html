@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
-  <link rel="stylesheet" href="style.css?v=1.0.17" />
+  <link rel="stylesheet" href="style.css?v=1.0.18" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -56,7 +56,7 @@
     <button class="account-tab" data-tab="profile">👤 Профиль</button>
     <button class="account-tab" data-tab="addresses">📍 Адреса</button>
     <button class="account-tab" data-tab="favorites">❤️ Избранное</button>
-    <button class="account-tab" data-tab="referral">🎁 Рефералка</button>
+    <button class="account-tab" data-tab="referral">🎁 Реферальная система</button>
     <button class="account-tab" data-tab="bonuses">💰 Бонусы</button>
     <button class="account-tab" data-tab="notifications">🔔 Уведомления</button>
   </nav>
@@ -188,6 +188,10 @@
           <div class="ref-stat-label">друзей зарегистрировалось</div>
         </div>
         <div class="ref-stat">
+          <div class="ref-stat-num" id="refClicks">0</div>
+          <div class="ref-stat-label">переходов по ссылке</div>
+        </div>
+        <div class="ref-stat">
           <div class="ref-stat-num" id="refEarned">0 ₽</div>
           <div class="ref-stat-label">уже начислено вам</div>
         </div>
@@ -225,6 +229,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="account.js?v=1.0.17"></script>
+<script src="account.js?v=1.0.18"></script>
 </body>
 </html>

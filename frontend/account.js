@@ -562,11 +562,12 @@ async function loadFavorites() {
   try {
     const res = await apiFetch('/account/favorites');
     const data = await res.json();
-    if (!data.length) {
+    const html = (data || []).map(favCard).filter(Boolean).join('');
+    if (!html) {
       list.innerHTML = '<div class="state-box"><div class="state-icon">❤️</div><div class="state-title">Избранного нет</div><div class="state-sub">Добавляйте товары в избранное в каталоге</div></div>';
       return;
     }
-    list.innerHTML = data.map(favCard).join('');
+    list.innerHTML = html;
     list.querySelectorAll('[data-fav-pid]').forEach(el => {
       el.querySelector('.fav-del').addEventListener('click', async () => {
         await apiFetch('/account/favorites/' + el.dataset.favPid, { method: 'DELETE' });
@@ -577,6 +578,7 @@ async function loadFavorites() {
 }
 function favCard(f) {
   const p = f.product;
+  if (!p) return '';
   return `
     <a class="fav-card" data-fav-pid="${p.id}" href="/product.html?id=${p.id}">
       <div class="fav-img" style="${p.primary_image ? `background-image:url('${p.primary_image}')` : ''}">${p.primary_image ? '' : '👕'}</div>
@@ -616,6 +618,8 @@ function paintReferral(data) {
   if (botEl) botEl.value = botLink;
   const invited = document.getElementById('invitedCount');
   if (invited) invited.textContent = data.invited_count ?? 0;
+  const clicks = document.getElementById('refClicks');
+  if (clicks) clicks.textContent = data.link_clicks ?? 0;
   const earned = document.getElementById('refEarned');
   if (earned) earned.textContent = fmtPrice(data.earned_total || 0);
 
@@ -735,24 +739,43 @@ async function setupBonuses() {
 async function setupNotifications() {
   const form = document.getElementById('notifForm');
   if (!form) return;
+  const ordersEl = document.getElementById('notifOrders');
+  const promoEl = document.getElementById('notifPromo');
   try {
     const res = await apiFetch('/account/notifications');
-    const data = await res.json();
-    document.getElementById('notifOrders').checked = !!data.order_updates;
-    document.getElementById('notifPromo').checked = !!data.promo;
-  } catch (e) {}
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.detail || 'Не удалось загрузить уведомления');
+    } else {
+      if (ordersEl) ordersEl.checked = !!data.order_updates;
+      if (promoEl) promoEl.checked = !!data.promo;
+    }
+  } catch (e) {
+    showToast('Ошибка загрузки уведомлений');
+  }
+
+  async function savePrefs() {
     try {
       const res = await apiFetch('/account/notifications', {
         method: 'PUT',
         body: JSON.stringify({
-          order_updates: document.getElementById('notifOrders').checked,
-          promo: document.getElementById('notifPromo').checked,
+          order_updates: !!(ordersEl && ordersEl.checked),
+          promo: !!(promoEl && promoEl.checked),
         }),
       });
-      if (res.ok) showToast('Настройки сохранены'); else showToast('Ошибка');
-    } catch (err) { showToast('Ошибка соединения'); }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) showToast('Настройки сохранены');
+      else showToast(data.detail || 'Не удалось сохранить уведомления');
+    } catch (err) {
+      showToast('Ошибка соединения');
+    }
+  }
+
+  if (ordersEl) ordersEl.addEventListener('change', savePrefs);
+  if (promoEl) promoEl.addEventListener('change', savePrefs);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await savePrefs();
   });
 }
 
