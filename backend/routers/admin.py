@@ -3,7 +3,7 @@ import uuid
 import asyncio
 import aiofiles
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
@@ -23,6 +23,7 @@ from schemas import (
     SubscriberOut, SubscriberListResponse,
     CustomerOut, CustomerUpdate, CustomerListResponse,
     ReferralSettings, ReferralSettingsUpdate, AdminBonusAdjust, BonusOut,
+    MetrikaSettingsOut, MetrikaSettingsUpdate, MetrikaOverview,
 )
 from models import AdminUser, BonusTxType
 from notifications import broadcast as tg_broadcast, get_broadcast_status
@@ -719,3 +720,56 @@ async def admin_list_subscribers(
     сумму, дата последнего заказа и контакты из него.
     """
     return await crud.get_subscribers(db, page=page, per_page=per_page, search=search)
+
+
+# ── Admin: Яндекс Метрика ───────────────────────────────────────────────────
+
+def _metrika_out(raw: dict) -> MetrikaSettingsOut:
+    return MetrikaSettingsOut(
+        counter_id=raw.get("counter_id") or "",
+        oauth_token_set=bool(raw.get("oauth_token")),
+    )
+
+
+@router.get("/admin/metrika", response_model=MetrikaSettingsOut)
+async def admin_get_metrika(
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    return _metrika_out(await crud.get_metrika_settings(db))
+
+
+@router.put("/admin/metrika", response_model=MetrikaSettingsOut)
+async def admin_put_metrika(
+    data: MetrikaSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    payload = data.model_dump(exclude_unset=True)
+    if "counter_id" in payload and payload["counter_id"] is not None:
+        payload["counter_id"] = "".join(ch for ch in str(payload["counter_id"]) if ch.isdigit())
+    raw = await crud.set_metrika_settings(db, payload)
+    return _metrika_out(raw)
+
+
+@router.get("/admin/metrika/overview", response_model=MetrikaOverview)
+async def admin_metrika_overview(
+    days: int = Query(30, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    from datetime import date, timedelta
+    from metrika import MetrikaError, fetch_overview
+
+    cfg = await crud.get_metrika_settings(db)
+    date2 = date.today()
+    date1 = date2 - timedelta(days=days - 1)
+    try:
+        return await fetch_overview(
+            cfg.get("oauth_token") or "",
+            cfg.get("counter_id") or "",
+            date1.isoformat(),
+            date2.isoformat(),
+        )
+    except MetrikaError as e:
+        raise HTTPException(status_code=min(e.status_code, 502), detail=str(e))

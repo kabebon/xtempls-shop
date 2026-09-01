@@ -4,7 +4,28 @@ const API = '/api';
 const tg = window.Telegram?.WebApp;
 
 // Public site config (manager username, contacts) loaded from backend — no hardcoding.
-let siteConfig = { manager_username: '', contact_telegram: '' };
+let siteConfig = { manager_username: '', contact_telegram: '', metrika_counter_id: '' };
+
+function injectMetrika(id) {
+  const counter = String(id || '').replace(/\D/g, '');
+  if (!counter || window.__xtemplsYm) return;
+  window.__xtemplsYm = counter;
+  (function (m, e, t, r, i, k, a) {
+    m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
+    m[i].l = 1 * new Date();
+    for (var j = 0; j < document.scripts.length; j++) {
+      if (document.scripts[j].src === r) { return; }
+    }
+    k = e.createElement(t); a = e.getElementsByTagName(t)[0];
+    k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
+  })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
+  window.ym(Number(counter), 'init', {
+    clickmap: true,
+    trackLinks: true,
+    accurateTrackBounce: true,
+    webvisor: false,
+  });
+}
 
 // Init Telegram WebApp
 if (tg) {
@@ -121,6 +142,7 @@ function applySiteConfig() {
   if (tgEl && siteConfig.contact_telegram) {
     tgEl.textContent = `@${siteConfig.contact_telegram.replace(/^@/, '')}`;
   }
+  injectMetrika(siteConfig.metrika_counter_id);
 }
 
 // ── Cart State (localStorage) ─────────────────────────────────────────────────
