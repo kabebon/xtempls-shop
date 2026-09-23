@@ -1063,11 +1063,19 @@ if (isCatalogPage) {
       newBtn.onclick = () => selectFeatured();
       if (catList) catList.appendChild(newBtn);
 
+      const lead = document.getElementById('catalogLead');
+      if (lead) {
+        lead.textContent = cats.length
+          ? cats.map(cat => cat.name).join(' · ')
+          : 'Сейчас нет включённых коллекций.';
+      }
+
       cats.forEach(cat => {
         const btn = document.createElement('button');
         btn.className = 'chip cat-btn';
         btn.type = 'button';
         btn.dataset.id = cat.id;
+        btn.dataset.slug = cat.slug || '';
         btn.textContent = cat.name;
         if (cat.product_count > 0) btn.textContent += ` (${cat.product_count})`;
         btn.onclick = () => selectCategory(cat.id);
@@ -1233,8 +1241,20 @@ if (isCatalogPage) {
   (async () => {
     const qs = new URLSearchParams(location.search);
     if (qs.get('featured') === '1') currentFeatured = true;
+    const requestedCategory = (qs.get('category') || '').trim();
     await loadFavoriteIds();
     await loadCategories();
+    let matchedId = '';
+    if (requestedCategory) {
+      const safe = window.CSS && CSS.escape ? CSS.escape(requestedCategory) : requestedCategory;
+      const byId = document.querySelector(`.cat-btn[data-id="${safe}"]`);
+      const bySlug = document.querySelector(`.cat-btn[data-slug="${safe}"]`);
+      matchedId = (byId || bySlug)?.dataset.id || '';
+    }
+    if (matchedId) {
+      selectCategory(matchedId);
+      return;
+    }
     if (currentFeatured) markActiveChip('featured');
     await loadFeatured();
     await loadProducts(true);
@@ -1701,7 +1721,49 @@ if (isProductPage) {
 }
 
 // ── Homepage novelties ────────────────────────────────────────────────────────
+function customOrderCardHtml() {
+  return `<a class="tile hero-card hero-custom" href="/design.html">
+    <h2>Свой дизайн</h2>
+    <p>Напиши нам и мы во всём поможем.</p>
+    <span class="hero-send" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+    </span>
+  </a>`;
+}
+
+async function renderHomeCollections() {
+  const grid = document.getElementById('collectionCards');
+  if (!grid) return;
+  try {
+    const res = await fetch(`${API}/categories/`);
+    if (!res.ok) return;
+    const cats = await res.json();
+    const cards = (cats || []).map((cat, i) => {
+      const dark = i % 2 === 1;
+      const text = cat.description ? esc(cat.description) : 'Открыть товары этой коллекции.';
+      const photo = i === 0
+        ? `<div class="hero-photo"><img src="/assets/img/df408010-4ee2-4a18-ba06-74ef893e28b9-16613473.jpeg" alt="${esc(cat.name)}" /></div>`
+        : '';
+      const bars = dark
+        ? `<div class="lyric-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`
+        : '';
+      return `<a class="tile hero-card ${dark ? 'hero-lyrics' : 'hero-basic'}" href="/catalog.html?category=${encodeURIComponent(cat.id)}">
+        <div class="hero-card-head"><span>${esc(cat.name)}</span><span class="tag">${cat.product_count ? 'В наличии' : 'Коллекция'}</span></div>
+        <h2>${esc(cat.name)}</h2>
+        <p>${text}</p>
+        ${photo}${bars}
+      </a>`;
+    }).join('');
+    const count = (cats || []).length + 1;
+    grid.dataset.count = String(count);
+    grid.innerHTML = (cards || `<a class="tile hero-card hero-basic" href="/catalog.html"><div class="hero-card-head"><span>Каталог</span></div><h2>Коллекции</h2><p>Сейчас нет включённых коллекций.</p></a>`) + customOrderCardHtml();
+  } catch (e) {
+    console.error('Failed to load collections', e);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  renderHomeCollections();
   const section = document.getElementById('homeNovelties');
   const row = document.getElementById('homeNoveltiesRow');
   if (!section || !row) return;

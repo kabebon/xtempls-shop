@@ -227,7 +227,9 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 @media (min-width: 768px) {
   .hero-top { grid-template-columns: 1.32fr 1fr; gap: 48px; padding-top: 52px; }
-  .hero-grid { grid-template-columns: 1.6fr 0.9fr 0.5fr; gap: 9px; }
+  .hero-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 9px; }
+  .hero-grid[data-count="2"] { grid-template-columns: 1.6fr 0.55fr; }
+  .hero-grid[data-count="3"] { grid-template-columns: 1.6fr 0.9fr 0.5fr; }
   .hero-card { min-height: 300px; }
   .hero-photo { display: block; }
 }
