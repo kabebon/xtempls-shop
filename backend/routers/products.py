@@ -29,10 +29,19 @@ async def list_products(
     )
 
 
+def _visible_on_storefront(product) -> bool:
+    if not product or not product.is_active:
+        return False
+    category = product.category
+    if category is not None and not category.is_active:
+        return False
+    return True
+
+
 @router.get("/slug/{slug}", response_model=ProductOut)
 async def get_product_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
     product = await crud.get_product_by_slug(db, slug)
-    if not product:
+    if not _visible_on_storefront(product):
         raise HTTPException(status_code=404, detail="Товар не найден")
     return product
 
@@ -40,6 +49,6 @@ async def get_product_by_slug(slug: str, db: AsyncSession = Depends(get_db)):
 @router.get("/{product_id}", response_model=ProductOut)
 async def get_product(product_id: int, db: AsyncSession = Depends(get_db)):
     product = await crud.get_product(db, product_id)
-    if not product or not product.is_active:
+    if not _visible_on_storefront(product):
         raise HTTPException(status_code=404, detail="Товар не найден")
     return product

@@ -89,6 +89,12 @@ async def get_products(
     )
     if active_only:
         q = q.where(Product.is_active == True)
+        # Скрытая категория не должна попадать в «Все» и в чужие подборки.
+        active_category_ids = select(Category.id).where(Category.is_active == True)
+        q = q.where(or_(
+            Product.category_id.is_(None),
+            Product.category_id.in_(active_category_ids),
+        ))
     if category_id:
         q = q.where(Product.category_id == category_id)
     if featured_only:
