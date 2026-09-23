@@ -188,9 +188,12 @@
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;">
               <input type="checkbox" id="fActive" checked /> Активен
             </label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;">
-              <input type="checkbox" id="fFeatured" /> Новинка ⭐
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;" title="Эти товары попадают в блок «Хиты сезона» на главной">
+              <input type="checkbox" id="fFeatured" /> Хит сезона
             </label>
+          </div>
+          <div class="form-group full" style="margin-top:-6px;">
+            <div style="font-size:12px;color:var(--text-muted);">Галочка «Хит сезона» выводит товар на главную, перед блоком «О нас».</div>
           </div>
           <div class="form-group">
             <label class="form-label">Сортировка</label>
@@ -308,7 +311,7 @@
               : `<div class="product-thumb-placeholder">🛍</div>`}
           </td>
           <td>
-            <div style="font-weight:600">${p.name}</div>
+            <div style="font-weight:600">${p.name}${p.is_featured ? ' <span class="badge badge-yellow">Хит</span>' : ''}</div>
             <div style="font-size:11px;color:var(--text-muted)">${p.slug}</div>
           </td>
           <td>${categories.find(c => c.id === p.category_id)?.name || '—'}</td>

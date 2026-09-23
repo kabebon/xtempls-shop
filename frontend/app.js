@@ -1059,7 +1059,7 @@ if (isCatalogPage) {
       newBtn.className = 'chip cat-btn';
       newBtn.type = 'button';
       newBtn.dataset.id = 'featured';
-      newBtn.textContent = 'Новинки';
+      newBtn.textContent = 'Хиты';
       newBtn.onclick = () => selectFeatured();
       if (catList) catList.appendChild(newBtn);
 
@@ -1141,7 +1141,7 @@ if (isCatalogPage) {
         if (titleEl) {
           let activeCatName = 'Каталог';
           if (currentFeatured) {
-            activeCatName = 'Новинки';
+            activeCatName = 'Хиты';
           } else if (currentCategory) {
             const activeBtn = document.querySelector(`.cat-btn[data-id="${currentCategory}"]`);
             if (activeBtn) {
@@ -1568,7 +1568,7 @@ if (isProductPage) {
           const badge = document.createElement('span');
           badge.id = 'newBadgeDetail';
           badge.className = 'new-badge new-badge-inline';
-          badge.textContent = 'Новинка';
+          badge.textContent = 'Хит';
           productName.insertAdjacentElement('afterend', badge);
         }
       }
