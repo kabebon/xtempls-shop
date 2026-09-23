@@ -154,7 +154,7 @@ if (registerForm) {
       ref_code: document.getElementById('refCode').value || undefined,
       tg_init_data: window.Telegram?.WebApp?.initData || undefined,
     };
-    btn.disabled = true; btn.textContent = 'Регистрируем…';
+    btn.disabled = true; btn.textContent = 'Создаём аккаунт…';
     try {
       const res = await fetch(`${API}/account/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -168,7 +168,7 @@ if (registerForm) {
     } catch (err) {
       showToast('Не удалось связаться с сервером');
     } finally {
-      btn.disabled = false; btn.textContent = 'Зарегистрироваться';
+      btn.disabled = false; btn.textContent = 'Создать аккаунт';
     }
   });
 }
@@ -352,15 +352,18 @@ async function loadOverview() {
   if (!box) return;
   box.innerHTML = '<div class="state-box"><div class="state-sub">Загрузка…</div></div>';
   try {
-    const [ordersRes, bonusRes] = await Promise.all([
+    const [ordersRes, bonusRes, favRes] = await Promise.all([
       apiFetch('/account/orders?per_page=1'),
       apiFetch('/account/bonuses'),
+      apiFetch('/account/favorites'),
     ]);
     const orders = await ordersRes.json();
     const bonus = await bonusRes.json();
+    const favs = favRes.ok ? await favRes.json() : [];
     box.innerHTML = `
-      <div class="stat-card"><div class="stat-num">${orders.total}</div><div class="stat-label">заказов</div></div>
-      <div class="stat-card"><div class="stat-num">${bonus.balance || 0}</div><div class="stat-label">бонусов, ₽</div></div>
+      <div class="stat-card"><div class="stat-num">${orders.total}</div><div class="stat-label">Заказов</div></div>
+      <div class="stat-card"><div class="stat-num">${bonus.balance || 0}</div><div class="stat-label">Бонусов</div></div>
+      <div class="stat-card"><div class="stat-num">${Array.isArray(favs) ? favs.length : 0}</div><div class="stat-label">В избранном</div></div>
     `;
   } catch (e) {
     box.innerHTML = '<div class="state-box"><div class="state-sub">Не удалось загрузить</div></div>';

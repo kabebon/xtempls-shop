@@ -1,276 +1,207 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <title>Главная страница - XTEMPLS</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    
-    <!-- Telegram Mini App Script -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-    <style id="inline-css">blockquote,body,button,code,dd,dl,dt,fieldset,form,h1,h2,h3,h4,h5,h6,html,input,legend,li,ol,p,pre,td,textarea,th,ul{padding:0;margin:0;font-weight:400}ol,ul{list-style:none}table{border-collapse:collapse;border-spacing:0}button,input,select,textarea{border:none;font-family:inherit;color:inherit;background:0 0;-webkit-appearance:none;appearance:none;outline:0}body,html{position:relative;width:100%;min-width:300px;height:100%;font-size:15px;font-weight:400;line-height:1.333;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;-ms-text-size-adjust:100%;-webkit-text-size-adjust:none;-webkit-overflow-scrolling:touch;word-wrap:break-word;word-break:break-word}html{-webkit-perspective:none!important}b,strong{font-weight:700!important}a{color:inherit}.sb-body_overflow{height:100%;overflow:hidden}.sb-body_overflow:after{content:"";position:fixed;top:0;left:0;z-index:98;width:100vw;height:100vh;background-color:rgba(51,51,51,.8)}.sb-body_with-footer .site-wrapper{box-sizing:border-box}.sb-body_hide-messenger{overflow:hidden}.sb-body_hide-messenger .messenger-button{display:none}.sb-padding-top_l{padding-top:72px}.sb-padding-top_m{padding-top:36px}.sb-padding-top_s{padding-top:20px}.sb-padding-bottom_l{padding-bottom:72px}.sb-padding-bottom_m{padding-bottom:36px}.sb-padding-bottom_s{padding-bottom:20px}.sb-hidden{display:none!important}@media screen and (max-width:639px){.sb-hidden-mobile{display:none!important}}@media screen and (min-width:300px){.sb-hidden-mobile-min{display:none!important}}@media (min-width:480px) and (max-width:639px){.sb-hidden-mobile-interval{display:none!important}}@media screen and (max-width:959px){.sb-body_with-footer .sb-block_fullscreen:only-child,.sb-body_with-footer .site-wrapper{min-height:calc(100vh - 44px)}.sb-hidden-tablet{display:none!important}}@media screen and (min-width:640px){.sb-hidden-tablet-min{display:none!important}}@media (min-width:640px) and (max-width:959px){.sb-hidden-tablet-interval{display:none!important}}@media screen and (max-width:1359px){.sb-hidden-desktop{display:none!important}}@media screen and (min-width:960px){.sb-body_with-footer .sb-block_fullscreen:only-child,.sb-body_with-footer .site-wrapper{min-height:calc(100vh - 60px)}.sb-hidden-desktop-min{display:none!important}}@media (min-width:960px) and (max-width:1359px){.sb-hidden-desktop-interval{display:none!important}}@media screen and (min-width:1360px){.sb-hidden-desktop-lg-min{display:none!important}}.sb-opacity{opacity:.4}.sb-align-center{text-align:center}.sb-align-left{text-align:left}.sb-pre-wrap{white-space:pre-wrap}.sb-text-ellipsis-focus:focus{text-overflow:clip!important}</style>
-    
-    <link rel="preconnect" href="https://660c827d-ce04-4b4c-80d1-1d6200e5d4c5.selcdn.net">
-    <link rel="stylesheet" href="/assets/styles/styles-element.css">
-    <link rel="stylesheet" href="/assets/styles/styles-layout.css">
-    <link rel="preload" href="/assets/styles/styles-lazy.css" as="style" onerror="this.onload=null;this.rel='stylesheet'">
-    <link rel="stylesheet" href="/assets/styles/styles-lazy.css" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="/assets/styles/styles-lazy.css"></noscript>
-    
-    <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841424.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841423.png">
-    <link rel="icon" type="image/png" sizes="120x120" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841425.png">
-    <link rel="apple-touch-icon" type="image/png" sizes="120x120" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841425.png">
-    <link rel="icon" type="image/png" sizes="180x180" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841426.png">
-    <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="/assets/img/d919eee5-e4f5-4910-bbd8-fade35828172-15841426.png">
-    
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Playfair+Display&subset=all&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Geologica&subset=all&display=swap">
-    
-    <link rel="stylesheet" href="/assets/styles/size-m.css">
-    <link rel="stylesheet" href="/assets/styles/submenu.css">
-    <link rel="stylesheet" href="/assets/styles/main-type-11.css">
-    <link rel="stylesheet" href="/assets/styles/bevel-type-1.css">
-    <link rel="stylesheet" href="/assets/styles/history-type-1.css">
-    <link rel="stylesheet" href="/assets/styles/advantages-blocks-type-2.css">
-    
-    <link rel="preload" href="/assets/styles/gallery-type-3.css" as="style" onerror="this.onload=null;this.rel='stylesheet'">
-    <link rel="stylesheet" href="/assets/styles/gallery-type-3.css" media="print" onload="this.media='all'">
-    <link rel="preload" href="/assets/styles/footer-customer-type-5.css" as="style" onerror="this.onload=null;this.rel='stylesheet'">
-    <link rel="stylesheet" href="/assets/styles/footer-customer-type-5.css" media="print" onload="this.media='all'">
-    <link rel="preload" href="/assets/styles/popups.css" as="style" onerror="this.onload=null;this.rel='stylesheet'">
-    <link rel="stylesheet" href="/assets/styles/popups.css" media="print" onload="this.media='all'">
-    <noscript>
-        <link rel="stylesheet" href="/assets/styles/gallery-type-3.css">
-        <link rel="stylesheet" href="/assets/styles/footer-customer-type-5.css">
-        <link rel="stylesheet" href="/assets/styles/popups.css">
-    </noscript>
-    <link rel="stylesheet" href="/assets/styles/styles-helpers.css">
-    <link rel="stylesheet" href="/style.css?v=1.0.19">
-
-    <!-- Our App Script -->
-    <script src="/app.js?v=1.0.19" defer></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS — одежда по законам аэродинамики</title>
+  <meta name="description" content="XTEMPLS. Одежда, созданная по законам аэродинамики. Коллекции BASIC и LYRICS, индивидуальный заказ." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/theme.css?v=2.0.0" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-<body class="sb-body playfair-display__title geologica sb-content-size_m sb-buttons-border_round">
+<body>
+<div class="page">
+<header class="site-header">
+  <div class="site-bar">
+    <a class="logo" href="/" aria-label="XTEMPLS — на главную">
+      <img src="/logo-x.png" alt="" width="26" height="26" />
+      <span>XTEMPLS</span>
+    </a>
+    <nav class="nav-desktop" aria-label="Основное меню">
+      <a href="/catalog.html">Каталог</a>
+      <a href="/#about">О нас</a>
+      <a href="/public.html">Уголок покупателя</a>
+      <a href="/design.html">Индивидуальный заказ</a>
+      <a class="btn btn-primary" href="/account.html">Личный кабинет</a>
+    </nav>
+    <button class="nav-burger" type="button" aria-label="Меню" aria-expanded="false">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+  <nav class="nav-menu" aria-label="Мобильное меню">
+    <a href="/catalog.html">Каталог</a>
+    <a href="/#about">О нас</a>
+    <a href="/public.html">Уголок покупателя</a>
+    <a href="/design.html">Индивидуальный заказ</a>
+    <a class="btn btn-primary" href="/account.html">Личный кабинет</a>
+  </nav>
+</header>
 
-<div class="site-wrapper" tabindex="0">
-    <section data-type="main" id="lgfiefu" class="s-main-type-11 sb-block sb-block_fullscreen sb-text-white sb-align-center">
-        <div class="sb-background-image sb-background" style="background-image: url(/assets/img/2934468e-2381-4d89-baa7-bec83a320ab1-16567474.jpeg);">
-            <div class="sb-background-overlay" style="opacity: 0.39"></div>
+<main>
+  <section class="hero wrap">
+    <div class="hero-top">
+      <h1>XTEMPLS.<br />Одежда по законам аэродинамики.</h1>
+      <div>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="/catalog.html"><span class="dot"></span> Смотреть каталог</a>
+          <a class="btn btn-secondary" href="/design.html">Индивидуальный заказ</a>
         </div>
-        <div class="sb-container s-main-type-11__container">
-            <div class="s-main-type-11__navigation">
-                <div class="sb-header-default sb-text-white">
-                    <div class="sb-container">
-                        <div class="sb-header-default__wrapper sb-header-default__wrapper_right-align-links">
-                            <div class="sb-header-default__burger sb-header-default__mark-links"><span class="sb-header-default__burger-line"></span></div>
-                            <nav class="sb-header-default__menu sb-header-default__menu_solid">
-                                <div class="sb-background"></div>
-                                <ul class="sb-header-default__link-wrapper">
-                                    <li class="sb-header-default__link-item sb-submenu-link"><a href="/catalog.html" class="sb-header-default__link sb-header-default__link_menu-color-inherit sb-font-p3">   Каталог   </a></li>
-                                    <li class="sb-header-default__link-item sb-submenu-link"><a href="/#ajpqkfe" class="sb-header-default__link sb-header-default__link_menu-color-inherit sb-font-p3">   О нас   </a></li>
-                                    <li class="sb-header-default__link-item sb-submenu-link"><a href="/public.html" class="sb-header-default__link sb-header-default__link_menu-color-inherit sb-font-p3">   Уголок покупателя   </a></li>
-                                    <li class="sb-header-default__link-item sb-submenu-link"><a href="/design.html" class="sb-header-default__link sb-header-default__link_menu-color-inherit sb-font-p3">   Индивидуальный заказ   </a></li>
-                                    <li class="sb-header-default__link-item sb-submenu-link"><a href="/account.html" class="sb-header-default__link sb-header-default__link_menu-color-inherit sb-font-p3">   Личный кабинет   </a></li>
-                                </ul>
-                            </nav>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="sb-row s-main-type-11__row sb-m-clear-bottom">
-                <div class="sb-col_lg-6 sb-col_md-8 sb-col_sm-12 sb-col_xs-12 sb-col-offset_lg-3 sb-col-offset_md-2">
-                    <h2 class="sb-align-center sb-font-h2 sb-font-title sb-m-12-bottom">
-                        <div><br></div><div><br></div><div>XTEMPLS</div><div><br></div>
-                    </h2>
-                    <div class="sb-m-7-bottom sb-font-p1"><font style="color: #d7d7d7;">Одежда, созданная по законам аэродинамики</font></div>
-                    <div class="s-main-type-11__buttons sb-m-19-top-minus">
-                        <a href="/catalog.html" class="s-main-type-11__button sb-button-primary sb-m-19-top sb-button-scheme-dark" style="background-color: #FFFFFF; color: #000;">Коллекция BASIC</a>
-                        <a href="/lyrics.html" class="s-main-type-11__button sb-button-secondary sb-m-19-top sb-button-scheme-dark sb-button-type_filled" style="background-color: #FFDD2D; color: #000;">Коллекция LYRICS (скоро)</a>
-                    </div>
-                </div>
-            </div>
+        <p class="hero-note">Доставка по России</p>
+      </div>
+    </div>
+    <div class="hero-grid">
+      <a class="tile hero-card hero-basic" href="/catalog.html">
+        <div class="hero-card-head"><span>BASIC</span><span class="tag">В наличии</span></div>
+        <h2>Базовый крой</h2>
+        <p>Плотный хлопок, принты и вышивка. Ничего лишнего.</p>
+        <div class="hero-photo">
+          <img src="/assets/img/df408010-4ee2-4a18-ba06-74ef893e28b9-16613473.jpeg" alt="Белая оверсайз-футболка XTEMPLS" />
         </div>
-    </section>
+      </a>
+      <a class="tile hero-card hero-lyrics" href="/lyrics.html">
+        <div class="hero-card-head"><span>LYRICS</span><span class="tag">Новое</span></div>
+        <h2>Строки, которые<br />читают вблизи.</h2>
+        <p>Романтика, автограф Да Винчи и многое другое.</p>
+        <div class="lyric-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </a>
+      <a class="tile hero-card hero-custom" href="/design.html">
+        <h2>Свой дизайн</h2>
+        <p>Напиши нам и мы во всём поможем.</p>
+        <span class="hero-send" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        </span>
+      </a>
+    </div>
+  </section>
 
-    
+  <section class="section wrap" id="about">
+    <div class="tile about-tile">
+      <div>
+        <span class="eyebrow">О нас</span>
+        <p class="about-lead">Мы не кричим о своей любви к авиации — мы её носим.</p>
+        <p>В каждом изделии, в точных пропорциях и сдержанном цвете, в едва заметных деталях, которые замечают только те, кто знает и чувствует.</p>
+        <p>Одежда не для полётов, а для жизни.</p>
+        <p class="about-sign">Прикоснись к прекрасному вместе с Xtempls!</p>
+      </div>
+      <div class="about-stats">
+        <div class="about-stat"><b>2019</b><span>год основания</span></div>
+        <div class="about-stat"><b>Бонус</b><span>приветственный при регистрации</span></div>
+        <div class="about-stat"><b>Лояльность</b><span>кэшбэк бонусами за покупки</span></div>
+      </div>
+    </div>
+  </section>
 
-    <section data-type="history" id="ajpqkfe" class="s-history-type-1 sb-text-white sb-padding-top_l sb-padding-bottom_l">
-        <div class="sb-background-image sb-background" style="background-image: url(/assets/img/a8d7e38c-edc1-4257-8326-fc802aa5108d-16578463.png);">
-            <div class="sb-background-overlay" style="opacity: 0.3"></div>
+  <section class="section wrap" style="padding-top:0">
+    <div class="section-head">
+      <h2>Почему у нас</h2>
+      <span class="muted">Коротко о главном</span>
+    </div>
+    <div class="adv-grid">
+      <article class="tile adv">
+        <div class="adv-top"><span class="adv-ico">↓</span><span class="tag">от 99 ₽</span></div>
+        <h3>Доставка</h3>
+        <p>Способы доставки по всей России, которые подойдут каждому.</p>
+      </article>
+      <article class="tile adv">
+        <div class="adv-top"><span class="adv-ico">₽</span><span class="tag">онлайн</span></div>
+        <h3>Удобная оплата</h3>
+        <p>Быстрая оплата и использование бонусов прямо в корзине.</p>
+      </article>
+      <article class="tile adv">
+        <div class="adv-top"><span class="adv-ico">✓</span><span class="tag">30 дней</span></div>
+        <h3>Гарантия качества</h3>
+        <p>Плотное полотно, ровные швы. Обмен и возврат — 30 дней без вопросов.</p>
+      </article>
+      <a class="tile adv" href="/design.html">
+        <div class="adv-top"><span class="adv-ico">✦</span><span class="tag">от 1 шт.</span></div>
+        <h3>Индивидуальный заказ</h3>
+        <p>Оставьте заявку, персональный дизайнер свяжется с вами и поможет создать индивидуальный дизайн.</p>
+        <span class="more">Оставить заявку →</span>
+      </a>
+      <article class="tile adv">
+        <div class="adv-top"><span class="adv-ico">+</span><span class="tag">бонусы</span></div>
+        <h3>Система лояльности</h3>
+        <p>Приветственный бонус за регистрацию, кэшбэк с каждой покупки и бонусы за друзей.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section wrap" id="homeNovelties" style="display:none; padding-top:0">
+    <div class="section-head">
+      <h2>Хиты сезона</h2>
+      <a class="btn btn-secondary" href="/catalog.html?featured=1">Весь каталог →</a>
+    </div>
+    <div id="homeNoveltiesRow"></div>
+  </section>
+
+  <section class="section wrap" style="padding-top:0">
+    <div class="tile social-tile">
+      <div class="social-grid">
+        <div>
+          <h2 class="block-title">Мы в соцсетях</h2>
+          <p class="muted" style="margin-top:12px;max-width:38ch">Съёмки, бэкстейдж с производства и первые кадры новинок — раньше, чем в каталоге.</p>
         </div>
-        <div class="sb-container sb-m-clear-bottom">
-            <div class="sb-row s-history-type-1__item sb-m-3-bottom sb-m-clear-bottom sb-m-clear-top s-history-type-1__item_sort">
-                <div class="sb-col_sm-12 sb-col_xs-12 sb-hidden-desktop-min">
-                    <h3 class="s-history-type-1__title sb-font-h3 sb-font-title"><div style="user-select: auto;"><br style="user-select: auto;"></div><br style="user-select: auto;"></h3>
-                </div>
-                <div class="sb-col_lg-5 sb-col_md-6 sb-col_sm-12 sb-col_xs-12 sb-m-7-bottom sb-m-3-top s-history-type-1__image-wrapper">
-                    <div class="sb-image-ratio-1x1"><img class="sb-image-crop sb-image-crop_loaded lazy" src="/assets/img/1d53712c-cd3a-45d6-86cc-3509d7c52fbf-15497577.jpeg" alt="Изображение"></div>
-                </div>
-                <div class="sb-col_sm-12 sb-col_xs-12 sb-col_lg-7 sb-col_md-6">
-                    <div class="s-history-type-1__text sb-m-clear-bottom">
-                        <h3 class="s-history-type-1__title sb-hidden-tablet sb-font-h3 sb-font-title sb-m-14-bottom"><div style="user-select: auto;"><br style="user-select: auto;"></div><br style="user-select: auto;"></h3>
-                        <div class="sb-m-clear-bottom">
-                            <h5 class="sb-font-h5 sb-font-title sb-m-21-bottom">
-                                <div style="user-select: auto;">Мы не кричим о своей любви к авиации — мы её носим. В каждом изделии, в точных пропорциях и сдержанном цвете, в едва заметных деталях, которые замечают только те, кто знает и чувствует.<br style="user-select: auto;"></div>
-                                <div style="user-select: auto;"><br style="user-select: auto;"></div>
-                                <div style="user-select: auto;">Одежда не для полетов, а для жизни. </div>
-                                <div style="user-select: auto;"><br style="user-select: auto;"></div>
-                                <div style="user-select: auto;">Прикоснись к прекрасному вместе с Xtempls!</div>
-                            </h5>
-                            <div class="sb-text-opacity sb-font-p2"><br></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="social-links">
+          <a class="social-link" href="https://t.me/+Sh8c1ZWdnVk0ODNi" target="_blank" rel="noreferrer">
+            <span class="social-ico">✈</span>
+            <span>
+              <b style="font-family:var(--display)">Telegram</b><br />
+              <span class="muted">Канал XTEMPLS</span>
+            </span>
+          </a>
+          <a class="social-link" href="https://dzen.ru/xtempls" target="_blank" rel="noreferrer">
+            <span class="social-ico">✶</span>
+            <span>
+              <b style="font-family:var(--display)">Дзен</b><br />
+              <span class="muted">Яндекс Дзен</span>
+            </span>
+          </a>
         </div>
-    </section>
+      </div>
+    </div>
+  </section>
+</main>
 
-    <section data-type="advantages-blocks" id="jbybrdp" class="s-advantages-blocks-type-2 sb-text-dark sb-padding-top_l sb-padding-bottom_s">
-        <div class="sb-background" style="background: linear-gradient(135deg, #edf0f6, #c9d6e8);"></div>
-        <div class="sb-container sb-m-clear-bottom">
-            <div class="s-advantages-blocks-type-2__list">
-                <div class="sb-row-square">
-<div class="s-advantages-blocks-type-2__col sb-col_sm-6 sb-col_xs-12 sb-col_lg-6 sb-col_md-6">
-<div class="s-advantages-blocks-type-2__wrapper sb-m-clear-bottom">
-<div class="s-advantages-blocks-type-2__image sb-m-17-bottom">
-<div class="sb-image-square">
-<img class="sb-image-crop sb-image-crop_loaded lazy" src="/assets/img/920da78b-21f1-4909-b92c-aab8da028e0d-1371175.png" alt="Изображение">
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div><a class="logo" href="/"><img src="/logo-x.png" alt="" /><span>XTEMPLS</span></a></div>
+    <div>
+      <h3>Магазин</h3>
+      <ul>
+        <li><a href="/catalog.html">Каталог</a></li>
+        <li><a href="/design.html">Индивидуальный заказ</a></li>
+        <li><a href="/account.html">Личный кабинет</a></li>
+        <li><a href="/public.html">Уголок покупателя</a></li>
+        <li><a href="/lyrics.html">Коллекция LYRICS</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Документы</h3>
+      <ul>
+        <li><a href="/public.html#offer">Публичная оферта</a></li>
+        <li><a href="/public.html#privacy">Политика конфиденциальности</a></li>
+        <li><a href="/public.html#loyalty">Система лояльности</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Контакты</h3>
+      <ul>
+        <li><a href="mailto:xtempls@yandex.ru">xtempls@yandex.ru</a></li>
+        <li><a href="https://t.me/xtempls_wear" target="_blank" rel="noreferrer"><span id="footerTelegram">@xtempls_wear</span></a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 XTEMPLS. Все права защищены.</span>
+    <span>ИП Скобелкин А. · ОГРНИП 325246800178790</span>
+  </div>
+</footer>
 </div>
-</div>
-<h5 class="sb-font-h5 sb-font-title sb-m-21-bottom">Доставка </h5>
-<div class="sb-font-p3">Доставка в любую точку России</div>
-</div>
-</div>
-<div class="s-advantages-blocks-type-2__col sb-col_sm-6 sb-col_xs-12 sb-col_lg-6 sb-col_md-6">
-<div class="s-advantages-blocks-type-2__wrapper sb-m-clear-bottom">
-<div class="s-advantages-blocks-type-2__image sb-m-17-bottom">
-<div class="sb-image-square">
-<img class="sb-image-crop sb-image-crop_loaded lazy" src="/assets/img/8c7878ab-185b-4c16-8b9a-535f69dda0cf-1371176.png" alt="Изображение">
-</div>
-</div>
-<h5 class="sb-font-h5 sb-font-title sb-m-21-bottom">Удобная оплата</h5>
-<div class="sb-font-p3">Быстрые и безопасные варианты оплаты</div>
-</div>
-</div>
-<div class="s-advantages-blocks-type-2__col sb-col_sm-6 sb-col_xs-12 sb-col_lg-6 sb-col_md-6">
-<div class="s-advantages-blocks-type-2__wrapper sb-m-clear-bottom">
-<div class="s-advantages-blocks-type-2__image sb-m-17-bottom">
-<div class="sb-image-square">
-<img class="sb-image-crop sb-image-crop_loaded lazy" src="/assets/img/c5b60048-d0f8-4973-8993-23362c9d1dce-1371177.png" alt="Изображение">
-</div>
-</div>
-<h5 class="sb-font-h5 sb-font-title sb-m-21-bottom">Гарантия качества</h5>
-<div class="sb-font-p3">Одежда из материалов премиального качества</div>
-</div>
-</div>
-<div class="s-advantages-blocks-type-2__col sb-col_sm-6 sb-col_xs-12 sb-col_lg-6 sb-col_md-6">
-<div class="s-advantages-blocks-type-2__wrapper sb-m-clear-bottom">
-<div class="s-advantages-blocks-type-2__image sb-m-17-bottom">
-<div class="sb-image-square">
-<img class="sb-image-crop sb-image-crop_loaded lazy" src="/assets/img/6fa2c242-5980-4acd-9588-30e30ba24755-15539496.png" alt="Изображение">
-</div>
-</div>
-<h5 class="sb-font-h5 sb-font-title sb-m-21-bottom">Индивидуальный дизайн</h5>
-<div class="sb-font-p3">Создайте то, что хотите. Мы поможем</div>
-</div>
-</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="homeNovelties" class="home-novelties sb-padding-top_l sb-padding-bottom_l" style="display:none;">
-        <div class="sb-background" style="background: linear-gradient(135deg, #edf0f6, #c9d6e8);"></div>
-        <div class="sb-container">
-            <div class="home-novelties-head">
-                <h3 class="sb-font-h3 sb-font-title">Новинки</h3>
-                <a href="/catalog.html?featured=1" class="home-novelties-more">Все новинки →</a>
-            </div>
-            <div id="homeNoveltiesRow" class="home-novelties-row"></div>
-        </div>
-    </section>
-
-    <section data-type="gallery" id="kwubhsf" class="s-gallery-type-3 sb-text-white sb-align-center sb-padding-top_s sb-padding-bottom_l">
-<div class="sb-background-image sb-background" style="background-image: url(/assets/img/32cb3c71-5cc3-4d0b-9914-e9b619ab9ffc-16578461.png);">
-<div class="sb-background-overlay" style="opacity: 0.3">
-</div>
-</div>
-<div class="sb-container sb-m-clear-bottom">
-<div class="sb-row sb-m-5-bottom sb-m-clear-bottom">
-<h2 class="sb-col_lg-8 sb-col-offset_lg-2 sb-col_md-12 sb-col_sm-12 sb-col_xs-12 sb-font-p1 sb-m-21-bottom">Следите за нами в социальных сетях </h2>
-</div>
-<div class="sb-row sb-m-5-top-minus" style="justify-content: center;">
-<div class="sb-col_sm-6 sb-col_xs-12 sb-m-5-top sb-col_lg-3 sb-col_md-3">
-<figure class="s-gallery-type-3__item sb-m-clear-bottom">
-<div class="s-gallery-type-3__image-wrapper sb-m-13-bottom" style="display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; height: 120px; box-sizing: border-box; transition: background var(--transition);">
-<a href="https://dzen.ru/xtempls" target="_blank" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-  <svg viewBox="0 0 100 100" style="width: 48px; height: 48px; fill: #ffffff; transition: transform var(--transition);">
-    <path d="M50 0C50 27.6142 27.6142 50 0 50C27.6142 50 50 72.3858 50 100C50 72.3858 72.3858 50 100 50C72.3858 50 50 27.6142 50 0Z"/>
-  </svg>
-</a>
-</div>
-<figcaption class="s-gallery-type-3__description sb-text-opacity sb-font-p2">
-<a href="https://dzen.ru/xtempls" target="_blank" class="sb-link" data-link-id="0" style="user-select: auto;">
-<font style="color: #ffffff;">Яндекс Дзен</font>
-</a>
-</figcaption>
-</figure>
-</div>
-<div class="sb-col_sm-6 sb-col_xs-12 sb-m-5-top sb-col_lg-3 sb-col_md-3">
-<figure class="s-gallery-type-3__item sb-m-clear-bottom">
-<div class="s-gallery-type-3__image-wrapper sb-m-13-bottom" style="display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; height: 120px; box-sizing: border-box; transition: background var(--transition);">
-<a href="https://t.me/+Sh8c1ZWdnVk0ODNi" target="_blank" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-  <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; fill: #ffffff; transition: transform var(--transition);">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.27-2.03-.49-.82-.27-1.47-.41-1.42-.87.03-.24.36-.49.99-.75 3.88-1.69 6.46-2.8 7.74-3.32 3.69-1.5 4.45-1.76 4.95-1.77.11 0 .36.03.52.16.13.11.17.27.18.38.01.09.02.26.01.45z"/>
-  </svg>
-</a>
-</div>
-<figcaption class="s-gallery-type-3__description sb-text-opacity sb-font-p2">
-<a href="https://t.me/+Sh8c1ZWdnVk0ODNi" target="_blank" class="sb-link" data-link-id="0" style="user-select: auto;">
-<font style="color: #ffffff;">Telegram</font>
-</a>
-</figcaption>
-</figure>
-</div>
-</div>
-</div>
-</section>
-
-    <section data-type="footer-customer" id="footer-customer" class="s-footer-customer-type-5 sb-text-white sb-padding-top_m sb-padding-bottom_l">
-        <div class="sb-background" style="background: linear-gradient(#4C5A9E, #2E3359);"></div>
-        <div class="sb-container">
-            <div class="sb-row sb-m-clear-bottom">
-                <div class="s-footer-customer-type-5__logo-column sb-col_xs-12 sb-col_sm-12 sb-col_md-12 sb-m-clear-bottom sb-col_lg-4">
-                    <a href="/" target="_self" class="sb-logotype-wrapper s-footer-customer-type-5__image-wrapper sb-logotype-wrapper_fixed_size-xl_square">
-                        <img class="lazy sb-logotype-wrapper__image" src="/assets/img/9da29ba6-b753-4403-9e51-51118dc17c4a-16595393.png" alt="Изображение">
-                    </a>
-                    <div class="sb-text-opacity sb-font-p3"><b><font style="color: #ffffff;">XTEMPLS</font></b></div>
-                </div>
-                <div class="s-footer-customer-type-5__links sb-col_xs-12 sb-col_sm-12 sb-col_md-8 sb-col_lg-5">
-                    <nav class="sb-row s-footer-customer-type-5__links-row">
-                        <ul class="sb-col_xs-12 sb-col_sm-5 sb-col_md-6 sb-col_lg-5">
-                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/" class="s-footer-customer-type-5__link sb-font-p3">   Главная   </a></li>
-                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/catalog.html" class="s-footer-customer-type-5__link sb-font-p3">   "BASIC"   </a></li>
-                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/lyrics.html" class="s-footer-customer-type-5__link sb-font-p3">   "LYRICS"   </a></li>
-                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/public.html" class="s-footer-customer-type-5__link sb-font-p3">   Уголок покупателя   </a></li>
-                            <li class="s-footer-customer-type-5__link-wrapper"><a href="/design.html" class="s-footer-customer-type-5__link sb-font-p3">   Свой дизайн   </a></li>
-
-                        </ul>
-                    </nav>
-                </div>
-                <div class="sb-col_xs-12 sb-col_sm-12 sb-col_md-4 sb-col_lg-3">
-                    <div class="sb-font-p3">Контакты:<br>Почта: <b>xtempls@yandex.ru</b><br>Telegram: <b><span id="footerTelegram">@xtempls_wear</span></b></div>
-                </div>
-            </div>
-        </div>
-    </section>
-</div>
-
-<!-- Cart Button Container (Managed by app.js) -->
-<div id="cartButtonContainer"></div>
-
+<div class="toast" id="toast"></div>
+<script src="/nav.js?v=2.0.0" defer></script>
+<script src="/app.js?v=2.0.0" defer></script>
 </body>
 </html>
-

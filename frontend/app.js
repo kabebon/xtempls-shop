@@ -122,7 +122,39 @@ function favBtnHtml(productId) {
 }
 
 function newBadgeHtml(p) {
-  return p && p.is_featured ? '<div class="new-badge">Новинка</div>' : '';
+  return p && p.is_featured ? '<span class="badge-new">NEW</span>' : '';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+function productCardHtml(p) {
+  const img = p.primary_image
+    ? `<img src="${esc(p.primary_image)}" alt="${esc(p.name)}" loading="lazy" />`
+    : `<div class="pcard-ph">XT</div>`;
+  const old = p.old_price && Number(p.old_price) > Number(p.price)
+    ? `<div class="pcard-old">${fmt(p.old_price)}</div>` : '';
+  const desc = p.description
+    ? `<p class="pcard-desc">${esc(p.description)}</p>` : '';
+  return `
+    <a class="tile pcard" href="/product.html?id=${p.id}">
+      <div class="pcard-media">
+        ${img}
+        <div class="pcard-badges">${newBadgeHtml(p)}</div>
+        ${favBtnHtml(p.id)}
+      </div>
+      <div class="pcard-body">
+        <h3>${esc(p.name)}</h3>
+        ${desc}
+        <div class="pcard-foot">
+          <div>${old}<div class="pcard-price">${fmt(p.price)}</div></div>
+          <span class="pcard-add" aria-hidden="true">+</span>
+        </div>
+      </div>
+    </a>`;
 }
 
 // Load public config early (non-blocking; links degrade gracefully if it fails)
@@ -176,31 +208,7 @@ function updateCartBadge() {
   }
 }
 
-// ── Burger Menu Logic ─────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  const burger = document.querySelector('.sb-header-default__burger');
-  const menu = document.querySelector('.sb-header-default__menu_solid');
-  if (burger && menu) {
-    burger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = menu.classList.contains('sb-header-default__menu_open') || menu.classList.contains('burger-menu-open');
-      if (isOpen) {
-        burger.classList.remove('sb-header-default__burger_open', 'sb-header-default__burger_active');
-        menu.classList.remove('sb-header-default__menu_open', 'burger-menu-open');
-      } else {
-        burger.classList.add('sb-header-default__burger_open', 'sb-header-default__burger_active');
-        menu.classList.add('sb-header-default__menu_open', 'burger-menu-open');
-      }
-    });
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!burger.contains(e.target) && !menu.contains(e.target)) {
-        burger.classList.remove('sb-header-default__burger_open', 'sb-header-default__burger_active');
-        menu.classList.remove('sb-header-default__menu_open', 'burger-menu-open');
-      }
-    });
-  }
-});
+// Меню шапки живёт в nav.js — старый бургер конструктора больше не используется.
 
 
 
@@ -477,7 +485,7 @@ function renderCartItems() {
   if (!body) return;
 
   if (cart.length === 0) {
-    body.innerHTML = '<div class="cart-empty">🛒 Корзина пуста</div>';
+    body.innerHTML = '<div class="cart-empty">В корзине пока нет товаров.</div>';
     if (footer) footer.style.display = 'none';
     return;
   }
@@ -719,7 +727,7 @@ function injectCartUI() {
     </div>
 
     <!-- FAB -->
-    <div class="cart-btn" onclick="openCart()" style="position:fixed; bottom:20px; right:20px; z-index:999999;">
+    <div class="cart-btn" onclick="openCart()" role="button" aria-label="Корзина">
       <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
       </svg>
@@ -1012,34 +1020,15 @@ if (isCatalogPage) {
   function showSkeletons(count = 6) {
     if (!grid) return;
     grid.innerHTML = Array(count).fill(0).map(() => `
-      <div class="s-services-type-5__item js-catalog__item sb-m-3-top sb-col_lg-4 sb-col_md-6 sb-col_sm-6 sb-col_xs-12 sb-skeleton">
-        <div class="s-services-type-5__item-content sb-m-clear-bottom">
-          <div class="s-services-type-5__image sb-image-square sb-skeleton__image"></div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-skeleton__title sb-align-center"></h3>
-          <div class="s-services-type-5__price sb-font-p3 sb-skeleton__price sb-align-center"></div>
-        </div>
+      <div class="tile pcard skeleton" aria-hidden="true">
+        <div class="pcard-media"></div>
+        <div class="pcard-body"><div class="sk-line"></div><div class="sk-line" style="width:40%"></div></div>
       </div>
     `).join('');
   }
 
-  // Render product card (Tinkoff Style)
-  function renderCard(p, delay = 0) {
-    const imgHtml = p.primary_image
-      ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy" class="sb-image-crop sb-image-crop_loaded lazy js-cart-goods-image" />`
-      : `<div class="card-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#f0f0f0;">🛍</div>`;
-
-    return `
-      <div class="s-services-type-5__item js-catalog__item sb-m-3-top sb-col_lg-4 sb-col_md-6 sb-col_sm-6 sb-col_xs-12" style="animation-delay:${delay}ms">
-        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
-          <div class="s-services-type-5__image sb-image-square" style="position:relative;">
-            ${newBadgeHtml(p)}${favBtnHtml(p.id)}${imgHtml}
-          </div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
-          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
-          <div class="s-services-type-5__price sb-font-p3 sb-align-center">${fmt(p.price)}</div>
-        </div>
-      </div>
-    `;
+  function renderCard(p) {
+    return productCardHtml(p);
   }
 
   function openProduct(slug, id) {
@@ -1049,26 +1038,7 @@ if (isCatalogPage) {
 
   // Compact card for the "featured" recommendations row.
   function renderFeaturedCard(p) {
-    const imgHtml = p.primary_image
-      ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy" class="sb-image-crop sb-image-crop_loaded lazy js-cart-goods-image" />`
-      : `<div class="card-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#f0f0f0;">🛍</div>`;
-
-    const badge = p.old_price && Number(p.old_price) > Number(p.price)
-      ? `<div style="position:absolute; top:8px; left:8px; background:#FFDD2D; color:#000; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px;">−${Math.round((1 - Number(p.price) / Number(p.old_price)) * 100)}%</div>`
-      : '';
-
-    return `
-      <div class="s-services-type-5__item sb-m-3-top sb-col_lg-3 sb-col_md-4 sb-col_sm-6 sb-col_xs-12">
-        <div class="s-services-type-5__item-content sb-m-clear-bottom" style="cursor: pointer; position:relative;" onclick="openProduct('${p.slug}', ${p.id})">
-          <div class="s-services-type-5__image sb-image-square" style="position:relative;">
-            ${newBadgeHtml(p)}${badge}${favBtnHtml(p.id)}${imgHtml}
-          </div>
-          <h3 class="s-services-type-5__subtitle sb-font-p2 sb-font-title sb-pre-wrap sb-align-center">${p.name}</h3>
-          ${p.old_price ? `<div class="s-services-type-5__old-price sb-font-p3 sb-crossed sb-text-opacity sb-align-center">${fmt(p.old_price)}</div>` : ''}
-          <div class="s-services-type-5__price sb-font-p3 sb-align-center">${fmt(p.price)}</div>
-        </div>
-      </div>
-    `;
+    return productCardHtml(p);
   }
 
   // Load categories
@@ -1078,18 +1048,16 @@ if (isCatalogPage) {
       const cats = await res.json();
       
       const allBtn = document.createElement('button');
-      allBtn.className = 'sb-button-secondary sb-font-p3 cat-btn active';
-      allBtn.style.margin = '0 5px 10px';
-      allBtn.style.padding = '8px 16px';
+      allBtn.className = 'chip cat-btn active';
+      allBtn.type = 'button';
       allBtn.dataset.id = '';
       allBtn.textContent = 'Все';
       allBtn.onclick = () => selectCategory('');
       if (catList) catList.appendChild(allBtn);
 
       const newBtn = document.createElement('button');
-      newBtn.className = 'sb-button-secondary sb-font-p3 cat-btn';
-      newBtn.style.margin = '0 5px 10px';
-      newBtn.style.padding = '8px 16px';
+      newBtn.className = 'chip cat-btn';
+      newBtn.type = 'button';
       newBtn.dataset.id = 'featured';
       newBtn.textContent = 'Новинки';
       newBtn.onclick = () => selectFeatured();
@@ -1097,9 +1065,8 @@ if (isCatalogPage) {
 
       cats.forEach(cat => {
         const btn = document.createElement('button');
-        btn.className = 'sb-button-secondary sb-font-p3 cat-btn';
-        btn.style.margin = '0 5px 10px';
-        btn.style.padding = '8px 16px';
+        btn.className = 'chip cat-btn';
+        btn.type = 'button';
         btn.dataset.id = cat.id;
         btn.textContent = cat.name;
         if (cat.product_count > 0) btn.textContent += ` (${cat.product_count})`;
@@ -1177,7 +1144,15 @@ if (isCatalogPage) {
           }
           titleEl.textContent = activeCatName;
         }
-        if (countEl) countEl.textContent = data.total > 0 ? `${data.total} товаров` : '';
+        if (countEl) {
+          const n = Number(data.total) || 0;
+          const n10 = n % 10;
+          const n100 = n % 100;
+          const word = (n10 === 1 && n100 !== 11) ? 'модель'
+            : (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) ? 'модели'
+            : 'моделей';
+          countEl.textContent = `${n} ${word}`;
+        }
       }
 
       if (reset) {
@@ -1201,6 +1176,7 @@ if (isCatalogPage) {
       if (loadMoreWrap) loadMoreWrap.style.display = currentPage < totalPages ? 'flex' : 'none';
     } catch (e) {
       console.error(e);
+      if (countEl && countEl.textContent === 'Загрузка…') countEl.textContent = 'Каталог недоступен';
       if (grid) grid.innerHTML = `
         <div class="state-box" style="grid-column:1/-1; width:100%; text-align:center; padding:40px;">
           <div class="state-icon" style="font-size:40px; margin-bottom:10px;">😕</div>
@@ -1268,115 +1244,88 @@ if (isCatalogPage) {
 // ── DESIGN REQUEST (design.html) ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  const designForm = document.querySelector('.s-form-type-2__main');
-  if (designForm) {
-    // Fix floating labels manually
-    designForm.querySelectorAll('.sb-input__field').forEach(input => {
-      const updateLabel = () => {
-        const label = input.nextElementSibling;
-        if (label && label.classList.contains('sb-input__placeholder')) {
-          if (input.value.trim() !== '' || document.activeElement === input) {
-            label.style.transform = 'translateY(-20px) scale(0.85)';
-            label.style.color = '#424242';
-            label.style.transition = '0.2s ease all';
-          } else {
-            label.style.transform = '';
-            label.style.color = '';
-          }
-        }
-      };
-      input.addEventListener('input', updateLabel);
-      input.addEventListener('focus', updateLabel);
-      input.addEventListener('blur', updateLabel);
-      
-      // Initialize after a short delay to catch browser auto-fills
-      setTimeout(updateLabel, 100);
-    });
+  const designForm = document.getElementById('designForm');
+  if (!designForm) return;
 
-    designForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+  designForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-      const nameInput = document.getElementById('form/0');
-      const phoneInput = document.getElementById('form/1');
-      const consentCheckbox = designForm.querySelector('input[type="checkbox"][data-agreement]');
-      const submitBtn = designForm.querySelector('input[type="submit"]');
+    const nameInput = document.getElementById('designName');
+    const phoneInput = document.getElementById('designPhone');
+    const emailInput = document.getElementById('designEmail');
+    const consentCheckbox = document.getElementById('designConsent');
+    const submitBtn = document.getElementById('designSubmit');
+    const successMsg = document.getElementById('designSuccess');
+    const errorMsg = document.querySelector('[data-status-error]');
 
-      if (!nameInput || !phoneInput) return;
+    const name = nameInput?.value.trim() || '';
+    const phone = phoneInput?.value.trim() || '';
+    const email = emailInput?.value.trim() || '';
 
-      const name = nameInput.value.trim();
-      const phone = phoneInput.value.trim();
+    if (name.length < 2) {
+      showToast('Введите имя (минимум 2 символа)');
+      nameInput?.focus();
+      return;
+    }
+    if (phone.length < 5) {
+      showToast('Введите корректный телефон');
+      phoneInput?.focus();
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      showToast('Укажите корректный e-mail');
+      emailInput?.focus();
+      return;
+    }
+    if (!consentCheckbox?.checked) {
+      showToast('Необходимо согласие с офертой и политикой конфиденциальности');
+      return;
+    }
 
-      // Minimum length checks (was previously only "filled").
-      if (name.length < 2) {
-        showToast('Введите имя (минимум 2 символа)');
-        nameInput.focus();
-        return;
-      }
-      if (phone.length < 5) {
-        showToast('Введите корректный телефон');
-        phoneInput.focus();
-        return;
-      }
-      // Consent must be ticked before a design request can be sent.
-      if (!consentCheckbox || !consentCheckbox.checked) {
-        showToast('Необходимо согласие с офертой и политикой конфиденциальности');
-        return;
-      }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Отправка…';
+    }
+    if (errorMsg) errorMsg.style.display = 'none';
 
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.value = 'Отправка...';
-      }
-
-      try {
-        const body = {
+    try {
+      const res = await fetch(`${API}/orders/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           customer_name: name,
           customer_contact: phone,
-          comment: 'Заявка на индивидуальный дизайн',
+          comment: `Заявка на индивидуальный дизайн. Email: ${email}`,
           order_type: 'design',
           tg_init_data: tg?.initData || null,
           consent_accepted: true,
-          items: [] // Empty items for design request
-        };
+          items: [],
+        }),
+      });
 
-        const res = await fetch(`${API}/orders/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Server error');
-        }
-
-        // Show success msg
-        const successMsg = document.querySelector('[data-status-success]');
-        if (successMsg) successMsg.style.display = 'block';
-
-        const errorMsg = document.querySelector('[data-status-error]');
-        if (errorMsg) errorMsg.style.display = 'none';
-
-        designForm.reset();
-
-      } catch (err) {
-        console.error(err);
-        const errorMsg = document.querySelector('[data-status-error]');
-        if (errorMsg) {
-          errorMsg.style.display = 'block';
-          // Surface the actual server-side reason if we have one.
-          const reason = err && err.message ? err.message : '';
-          if (reason) errorMsg.textContent = 'Ошибка: ' + reason;
-        }
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.value = 'Отправить';
-        }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Server error');
       }
-    });
-  }
+
+      designForm.reset();
+      designForm.style.display = 'none';
+      if (successMsg) successMsg.style.display = 'block';
+      showToast('Заявка отправлена');
+    } catch (err) {
+      console.error(err);
+      if (errorMsg) {
+        errorMsg.style.display = 'block';
+        errorMsg.textContent = 'Ошибка: ' + (err?.message || 'не удалось отправить');
+      }
+      showToast('Не удалось отправить заявку');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Отправить заявку';
+      }
+    }
+  });
 });
 
 
@@ -1763,16 +1712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = await res.json();
     if (!data.items || !data.items.length) return;
     section.style.display = '';
-    row.innerHTML = data.items.map(p => {
-      const img = p.primary_image
-        ? `<img src="${p.primary_image}" alt="${p.name}" loading="lazy">`
-        : `<div class="card-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f0f0f0;">🛍</div>`;
-      return `<a class="home-new-card" href="/product.html?id=${p.id}">
-        <div class="home-new-img">${newBadgeHtml(p)}${favBtnHtml(p.id)}${img}</div>
-        <div class="home-new-name">${p.name}</div>
-        <div class="home-new-price">${fmt(p.price)}</div>
-      </a>`;
-    }).join('');
+    row.innerHTML = data.items.map(productCardHtml).join('');
   } catch (e) {
     console.error('Failed to load novelties', e);
   }
