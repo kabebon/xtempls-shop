@@ -151,7 +151,7 @@ function productCardHtml(p) {
         ${desc}
         <div class="pcard-foot">
           <div>${old}<div class="pcard-price">${fmt(p.price)}</div></div>
-          <span class="pcard-add" aria-hidden="true">+</span>
+          <span class="pcard-add" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
         </div>
       </div>
     </a>`;
@@ -504,9 +504,9 @@ function renderCartItems() {
         <div class="cart-item-price">${fmt(item.product_price * item.quantity)}</div>
       </div>
       <div class="cart-item-qty">
-        <button class="qty-btn" onclick="changeQty('${item.key}', -1)">−</button>
+        <button class="qty-btn" type="button" aria-label="Меньше" onclick="changeQty('${item.key}', -1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
         <span class="qty-num">${item.quantity}</span>
-        <button class="qty-btn" onclick="changeQty('${item.key}', 1)">+</button>
+        <button class="qty-btn" type="button" aria-label="Больше" onclick="changeQty('${item.key}', 1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
     </div>
   `).join('');
