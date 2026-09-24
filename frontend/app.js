@@ -1753,16 +1753,18 @@ async function renderHomeCollections(home) {
     const images = copy.category_images || {};
     const fallback = '/assets/img/df408010-4ee2-4a18-ba06-74ef893e28b9-16613473.jpeg';
     const cards = (cats || []).map((cat, i) => {
-      const dark = i % 2 === 1;
+      const slug = String(cat.slug || cat.name || '').toLowerCase();
+      const isLyrics = slug.includes('lyric');
       const text = cat.description ? esc(cat.description) : 'Открыть товары этой коллекции.';
-      const photoUrl = images[String(cat.id)] || (i === 0 ? fallback : '');
+      const customPhoto = images[String(cat.id)] || '';
+      const photoUrl = customPhoto || (!isLyrics && i === 0 ? fallback : '');
       const photo = photoUrl
         ? `<div class="hero-photo"><img src="${esc(photoUrl)}" alt="${esc(cat.name)}" /></div>`
         : '';
-      const bars = dark && !photoUrl
+      const bars = !photoUrl
         ? `<div class="lyric-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`
         : '';
-      return `<a class="tile hero-card ${dark ? 'hero-lyrics' : 'hero-basic'}" href="/catalog.html?category=${encodeURIComponent(cat.id)}">
+      return `<a class="tile hero-card ${isLyrics ? 'hero-lyrics' : 'hero-basic'}" href="/catalog.html?category=${encodeURIComponent(cat.id)}">
         <div class="hero-card-head"><span>${esc(cat.name)}</span><span class="tag">${cat.product_count ? 'В наличии' : 'Коллекция'}</span></div>
         <h2>${esc(cat.name)}</h2>
         <p>${text}</p>

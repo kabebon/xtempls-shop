@@ -187,19 +187,39 @@
     const cats = await res.json();
     box.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:15px;">Фото карточек на главной</h3>
-      <p style="color:var(--text-muted);margin:0 0 12px;">Картинка у коллекции на главной, в том числе на телефоне. Если фото не задано, у первой карточки остаётся стандартный снимок.</p>
+      <p style="color:var(--text-muted);margin:0 0 12px;">Картинка у коллекции на главной, в том числе на телефоне. «Убрать фото» возвращает столбики у LYRICS и стандартный снимок у первой карточки, если своего файла нет.</p>
       ${cats.map(c => `
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
           <img src="${images[String(c.id)] || ''}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;background:#eee;${images[String(c.id)] ? '' : 'display:none;'}" />
           <div>
             <div style="font-weight:600;">${c.name}${c.is_active ? '' : ' (скрыта)'}</div>
             <input type="file" accept="image/*" data-cat="${c.id}" />
+            ${images[String(c.id)] ? `<button type="button" class="btn btn-secondary" data-clear="${c.id}" style="margin-top:8px;">Убрать фото</button>` : ''}
           </div>
         </div>
       `).join('')}`;
     box.querySelectorAll('input[type="file"]').forEach(input => {
       input.addEventListener('change', () => uploadHomePhoto(input));
     });
+    box.querySelectorAll('[data-clear]').forEach(btn => {
+      btn.addEventListener('click', () => clearHomePhoto(btn.dataset.clear, btn));
+    });
+  }
+
+  async function clearHomePhoto(categoryId, btn) {
+    btn.disabled = true;
+    const res = await apiFetch('/api/admin/homepage', {
+      method: 'PUT',
+      body: JSON.stringify({ category_images: { [String(categoryId)]: '' } }),
+    });
+    btn.disabled = false;
+    if (res.ok) {
+      showToast('Фото убрано', 'success');
+      loadHomepage();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Не удалось убрать фото', 'error');
+    }
   }
 
   async function uploadHomePhoto(input) {
