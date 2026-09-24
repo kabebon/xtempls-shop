@@ -41,7 +41,14 @@
       <div class="topbar-title">Тексты сайта</div>
     </div>
     <div class="page-body">
-      <p style="color:var(--text-muted);margin:0 0 16px;">Оферта, политика конфиденциальности и система лояльности. После сохранения текст сразу виден в уголке покупателя.</p>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="topbar-title" style="margin-bottom:8px;">Главная страница</div>
+        <p style="color:var(--text-muted);margin:0 0 16px;">Заголовки, слоган, блоки «О нас», «Почему у нас», подвал. Фото карточек коллекций — ниже. После сохранения текст сразу виден на сайте.</p>
+        <div id="homeFields"></div>
+        <button class="btn btn-primary" id="saveHomeBtn" type="button">Сохранить тексты главной</button>
+        <div id="homePhotos" style="margin-top:22px;"></div>
+      </div>
+      <p style="color:var(--text-muted);margin:0 0 16px;">Оферта, политика, лояльность и пользовательское соглашение. После сохранения текст сразу виден в уголке покупателя.</p>
       <div id="pagesList"></div>
     </div>
   </div>
@@ -92,7 +99,144 @@
     }
   };
 
+  const HOME_GROUPS = [
+    ['Шапка', [
+      ['hero_title', 'Название'],
+      ['hero_slogan', 'Слоган под названием'],
+      ['hero_catalog_btn', 'Кнопка каталога'],
+      ['hero_custom_btn', 'Кнопка индивидуального заказа'],
+      ['hero_note', 'Строка под кнопками'],
+      ['custom_title', 'Заголовок карточки «Свой дизайн»'],
+      ['custom_text', 'Текст карточки «Свой дизайн»', true],
+    ]],
+    ['Хиты сезона', [
+      ['hits_title', 'Заголовок блока'],
+      ['hits_link', 'Текст ссылки'],
+    ]],
+    ['О нас', [
+      ['about_kicker', 'Маленькая подпись'],
+      ['about_lead', 'Главная фраза', true],
+      ['about_p1', 'Абзац 1', true],
+      ['about_p2', 'Абзац 2', true],
+      ['about_sign', 'Подпись'],
+      ['founded_year', 'Год основания'],
+      ['founded_label', 'Подпись к году'],
+      ['stat2_value', 'Вторая цифра'],
+      ['stat2_label', 'Подпись второй цифры'],
+      ['stat3_value', 'Третья цифра'],
+      ['stat3_label', 'Подпись третьей цифры'],
+    ]],
+    ['Почему у нас', [
+      ['why_title', 'Заголовок'],
+      ['why_note', 'Подзаголовок'],
+      ['adv1_tag', 'Доставка — метка'],
+      ['adv1_title', 'Доставка — заголовок'],
+      ['adv1_text', 'Доставка — текст', true],
+      ['adv2_tag', 'Оплата — метка'],
+      ['adv2_title', 'Оплата — заголовок'],
+      ['adv2_text', 'Оплата — текст', true],
+      ['adv3_tag', 'Гарантия — метка'],
+      ['adv3_title', 'Гарантия — заголовок'],
+      ['adv3_text', 'Гарантия — текст', true],
+      ['adv4_tag', 'Индивидуальный заказ — метка'],
+      ['adv4_title', 'Индивидуальный заказ — заголовок'],
+      ['adv4_text', 'Индивидуальный заказ — текст', true],
+      ['adv4_more', 'Индивидуальный заказ — ссылка'],
+      ['adv5_tag', 'Лояльность — метка'],
+      ['adv5_title', 'Лояльность — заголовок'],
+      ['adv5_text', 'Лояльность — текст', true],
+    ]],
+    ['Соцсети и подвал', [
+      ['social_title', 'Заголовок соцсетей'],
+      ['social_text', 'Текст соцсетей', true],
+      ['footer_rights', 'Строка «все права защищены»'],
+      ['footer_legal', 'Реквизиты в подвале'],
+    ]],
+  ];
+
+  function homeInput(key, label, area, value) {
+    const safe = String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const field = area
+      ? `<textarea class="form-input js-home" data-key="${key}" rows="3">${safe}</textarea>`
+      : `<input class="form-input js-home" data-key="${key}" value="${safe.replace(/"/g, '&quot;')}" />`;
+    return `<div class="form-group"><label class="form-label">${label}</label>${field}</div>`;
+  }
+
+  async function loadHomepage() {
+    const box = document.getElementById('homeFields');
+    const res = await apiFetch('/api/homepage');
+    if (!res.ok) {
+      box.innerHTML = '<p>Не удалось загрузить тексты главной</p>';
+      return;
+    }
+    const data = await res.json();
+    box.innerHTML = HOME_GROUPS.map(([title, fields]) => `
+      <h3 style="margin:18px 0 8px;font-size:15px;">${title}</h3>
+      ${fields.map(([key, label, area]) => homeInput(key, label, area, data[key])).join('')}
+    `).join('');
+    loadHomePhotos(data.category_images || {});
+  }
+
+  async function loadHomePhotos(images) {
+    const box = document.getElementById('homePhotos');
+    const res = await apiFetch('/api/admin/categories');
+    if (!res.ok) {
+      box.innerHTML = '';
+      return;
+    }
+    const cats = await res.json();
+    box.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:15px;">Фото карточек на главной</h3>
+      <p style="color:var(--text-muted);margin:0 0 12px;">Картинка у коллекции на главной, в том числе на телефоне. Если фото не задано, у первой карточки остаётся стандартный снимок.</p>
+      ${cats.map(c => `
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <img src="${images[String(c.id)] || ''}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;background:#eee;${images[String(c.id)] ? '' : 'display:none;'}" />
+          <div>
+            <div style="font-weight:600;">${c.name}${c.is_active ? '' : ' (скрыта)'}</div>
+            <input type="file" accept="image/*" data-cat="${c.id}" />
+          </div>
+        </div>
+      `).join('')}`;
+    box.querySelectorAll('input[type="file"]').forEach(input => {
+      input.addEventListener('change', () => uploadHomePhoto(input));
+    });
+  }
+
+  async function uploadHomePhoto(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const body = new FormData();
+    body.append('file', file);
+    body.append('category_id', input.dataset.cat);
+    const res = await apiFetch('/api/admin/homepage/image', { method: 'POST', body });
+    if (res.ok) {
+      showToast('Фото сохранено', 'success');
+      loadHomepage();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Не удалось загрузить фото', 'error');
+    }
+  }
+
+  document.getElementById('saveHomeBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('saveHomeBtn');
+    const payload = {};
+    document.querySelectorAll('.js-home').forEach(el => { payload[el.dataset.key] = el.value; });
+    btn.disabled = true;
+    const res = await apiFetch('/api/admin/homepage', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    btn.disabled = false;
+    if (res.ok) showToast('Тексты главной сохранены', 'success');
+    else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка сохранения', 'error');
+    }
+  });
+
   loadPages();
+  loadHomepage();
 </script>
 </body>
 </html>

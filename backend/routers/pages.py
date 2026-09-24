@@ -1,5 +1,5 @@
 """Публичные и админские эндпоинты текстовых блоков (оферта, лояльность…)."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -21,6 +21,20 @@ async def get_page(key: str, db: AsyncSession = Depends(get_db)):
     if not page:
         raise HTTPException(status_code=404, detail="Страница не найдена")
     return page
+
+
+@router.get("/homepage")
+async def public_homepage(db: AsyncSession = Depends(get_db)):
+    return await crud.get_homepage(db)
+
+
+@router.put("/admin/homepage")
+async def admin_update_homepage(
+    data: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(get_current_admin),
+):
+    return await crud.save_homepage(db, data)
 
 
 @router.put("/admin/pages/{key}", response_model=SitePageOut)

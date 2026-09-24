@@ -151,6 +151,7 @@ class ProductListOut(BaseModel):
     is_featured: bool
     primary_image: Optional[str] = None
     category_id: Optional[int] = None
+    description: Optional[str] = None
 
     class Config:
         from_attributes = True
