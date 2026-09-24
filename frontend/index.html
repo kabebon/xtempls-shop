@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>XTEMPLS — одежда по законам аэродинамики</title>
   <meta name="description" content="XTEMPLS. Одежда, созданная по законам аэродинамики. Коллекции BASIC и LYRICS, индивидуальный заказ." />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/logo-x.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/theme.css?v=2.0.2" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/theme.css?v=2.1.0" />
+  <script src="/tg-boot.js"></script>
 </head>
 <body>
 <div class="page">
@@ -43,13 +43,16 @@
 <main>
   <section class="hero wrap">
     <div class="hero-top">
-      <h1>XTEMPLS.<br />Одежда по законам аэродинамики.</h1>
+      <h1>
+        <span class="hero-title" data-copy="hero_title">XTEMPLS.</span>
+        <span class="hero-slogan" data-copy="hero_slogan">одежда, созданная по законам аэродинамики.</span>
+      </h1>
       <div>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="/catalog.html"><span class="dot"></span> Смотреть каталог</a>
-          <a class="btn btn-secondary" href="/design.html">Индивидуальный заказ</a>
+          <a class="btn btn-primary" href="/catalog.html"><span class="dot"></span> <span data-copy="hero_catalog_btn">Смотреть каталог</span></a>
+          <a class="btn btn-secondary" href="/design.html" data-copy="hero_custom_btn">Индивидуальный заказ</a>
         </div>
-        <p class="hero-note">Доставка по России</p>
+        <p class="hero-note" data-copy="hero_note">Доставка по России</p>
       </div>
     </div>
     <div class="hero-grid" id="collectionCards" data-count="2">
@@ -70,8 +73,8 @@
 
   <section class="section wrap" id="homeNovelties" style="display:none; padding-bottom:0">
     <div class="section-head">
-      <h2>Хиты сезона</h2>
-      <a class="btn btn-secondary" href="/catalog.html">Весь каталог →</a>
+      <h2 data-copy="hits_title">Хиты сезона</h2>
+      <a class="btn btn-secondary" href="/catalog.html" data-copy="hits_link">Весь каталог →</a>
     </div>
     <div id="homeNoveltiesRow"></div>
   </section>
@@ -79,51 +82,51 @@
   <section class="section wrap" id="about">
     <div class="tile about-tile">
       <div>
-        <span class="eyebrow">О нас</span>
-        <p class="about-lead">Мы не кричим о своей любви к авиации — мы её носим.</p>
-        <p>В каждом изделии, в точных пропорциях и сдержанном цвете, в едва заметных деталях, которые замечают только те, кто знает и чувствует.</p>
-        <p>Одежда не для полётов, а для жизни.</p>
-        <p class="about-sign">Прикоснись к прекрасному вместе с Xtempls!</p>
+        <span class="eyebrow" data-copy="about_kicker">О нас</span>
+        <p class="about-lead" data-copy="about_lead">Мы не кричим о своей любви к авиации — мы её носим.</p>
+        <p data-copy="about_p1">В каждом изделии, в точных пропорциях и сдержанном цвете, в едва заметных деталях, которые замечают только те, кто знает и чувствует.</p>
+        <p data-copy="about_p2">Одежда не для полётов, а для жизни.</p>
+        <p class="about-sign" data-copy="about_sign">Прикоснись к прекрасному вместе с Xtempls!</p>
       </div>
       <div class="about-stats">
-        <div class="about-stat"><b>2019</b><span>год основания</span></div>
-        <div class="about-stat"><b>Бонус</b><span>приветственный при регистрации</span></div>
-        <div class="about-stat"><b>Лояльность</b><span>кэшбэк бонусами за покупки</span></div>
+        <div class="about-stat"><b data-copy="founded_year">2025</b><span data-copy="founded_label">год основания</span></div>
+        <div class="about-stat"><b data-copy="stat2_value">Бонус</b><span data-copy="stat2_label">приветственный при регистрации</span></div>
+        <div class="about-stat"><b data-copy="stat3_value">Лояльность</b><span data-copy="stat3_label">кэшбэк бонусами за покупки</span></div>
       </div>
     </div>
   </section>
 
   <section class="section wrap" style="padding-top:0">
     <div class="section-head">
-      <h2>Почему у нас</h2>
-      <span class="muted">Коротко о главном</span>
+      <h2 data-copy="why_title">Почему у нас</h2>
+      <span class="muted" data-copy="why_note">Коротко о главном</span>
     </div>
     <div class="adv-grid">
       <article class="tile adv">
-        <div class="adv-top"><span class="adv-ico">↓</span><span class="tag">от 99 ₽</span></div>
-        <h3>Доставка</h3>
-        <p>Способы доставки по всей России, которые подойдут каждому.</p>
+        <div class="adv-top"><span class="adv-ico">↓</span><span class="tag" data-copy="adv1_tag">от 99 ₽</span></div>
+        <h3 data-copy="adv1_title">Доставка</h3>
+        <p data-copy="adv1_text">Способы доставки по всей России, которые подойдут каждому.</p>
       </article>
       <article class="tile adv">
-        <div class="adv-top"><span class="adv-ico">₽</span><span class="tag">онлайн</span></div>
-        <h3>Удобная оплата</h3>
-        <p>Быстрая оплата и использование бонусов прямо в корзине.</p>
+        <div class="adv-top"><span class="adv-ico">₽</span><span class="tag" data-copy="adv2_tag">онлайн</span></div>
+        <h3 data-copy="adv2_title">Удобная оплата</h3>
+        <p data-copy="adv2_text">Быстрая оплата и использование бонусов прямо в корзине.</p>
       </article>
       <article class="tile adv">
-        <div class="adv-top"><span class="adv-ico">✓</span><span class="tag">30 дней</span></div>
-        <h3>Гарантия качества</h3>
-        <p>Плотное полотно, ровные швы. Обмен и возврат — 30 дней без вопросов.</p>
+        <div class="adv-top"><span class="adv-ico">✓</span><span class="tag" data-copy="adv3_tag">30 дней</span></div>
+        <h3 data-copy="adv3_title">Гарантия качества</h3>
+        <p data-copy="adv3_text">Плотное полотно, ровные швы. Обмен и возврат — 30 дней без вопросов.</p>
       </article>
       <a class="tile adv" href="/design.html">
-        <div class="adv-top"><span class="adv-ico">✦</span><span class="tag">от 1 шт.</span></div>
-        <h3>Индивидуальный заказ</h3>
-        <p>Оставьте заявку, персональный дизайнер свяжется с вами и поможет создать индивидуальный дизайн.</p>
-        <span class="more">Оставить заявку →</span>
+        <div class="adv-top"><span class="adv-ico">✦</span><span class="tag" data-copy="adv4_tag">от 1 шт.</span></div>
+        <h3 data-copy="adv4_title">Индивидуальный заказ</h3>
+        <p data-copy="adv4_text">Оставьте заявку, персональный дизайнер свяжется с вами и поможет создать индивидуальный дизайн.</p>
+        <span class="more" data-copy="adv4_more">Оставить заявку →</span>
       </a>
       <article class="tile adv">
-        <div class="adv-top"><span class="adv-ico">+</span><span class="tag">бонусы</span></div>
-        <h3>Система лояльности</h3>
-        <p>Приветственный бонус за регистрацию, кэшбэк с каждой покупки и бонусы за друзей.</p>
+        <div class="adv-top"><span class="adv-ico">+</span><span class="tag" data-copy="adv5_tag">бонусы</span></div>
+        <h3 data-copy="adv5_title">Система лояльности</h3>
+        <p data-copy="adv5_text">Приветственный бонус за регистрацию, кэшбэк с каждой покупки и бонусы за друзей.</p>
       </article>
     </div>
   </section>
@@ -132,8 +135,8 @@
     <div class="tile social-tile">
       <div class="social-grid">
         <div>
-          <h2 class="block-title">Мы в соцсетях</h2>
-          <p class="muted" style="margin-top:12px;max-width:38ch">Съёмки, бэкстейдж с производства и первые кадры новинок — раньше, чем в каталоге.</p>
+          <h2 class="block-title" data-copy="social_title">Мы в соцсетях</h2>
+          <p class="muted" style="margin-top:12px;max-width:38ch" data-copy="social_text">Съёмки, бэкстейдж с производства и первые кадры новинок — раньше, чем в каталоге.</p>
         </div>
         <div class="social-links">
           <a class="social-link" href="https://t.me/+Sh8c1ZWdnVk0ODNi" target="_blank" rel="noreferrer">
@@ -175,6 +178,7 @@
         <li><a href="/public.html#offer">Публичная оферта</a></li>
         <li><a href="/public.html#privacy">Политика конфиденциальности</a></li>
         <li><a href="/public.html#loyalty">Система лояльности</a></li>
+        <li><a href="/public.html#agreement">Пользовательское соглашение</a></li>
       </ul>
     </div>
     <div>
@@ -186,13 +190,13 @@
     </div>
   </div>
   <div class="footer-bottom">
-    <span>© 2026 XTEMPLS. Все права защищены.</span>
-    <span>ИП Скобелкин А. · ОГРНИП 325246800178790</span>
+    <span data-copy="footer_rights">© 2025 XTEMPLS. Все права защищены.</span>
+    <span data-copy="footer_legal">ИП Скобелкин А. · ОГРНИП 325246800178790</span>
   </div>
 </footer>
 </div>
 <div class="toast" id="toast"></div>
 <script src="/nav.js?v=2.0.0" defer></script>
-<script src="/app.js?v=2.0.3" defer></script>
+<script src="/app.js?v=2.1.1" defer></script>
 </body>
 </html>

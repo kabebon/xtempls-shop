@@ -137,8 +137,9 @@ function productCardHtml(p) {
     : `<div class="pcard-ph">XT</div>`;
   const old = p.old_price && Number(p.old_price) > Number(p.price)
     ? `<div class="pcard-old">${fmt(p.old_price)}</div>` : '';
-  const desc = p.description
-    ? `<p class="pcard-desc">${esc(p.description)}</p>` : '';
+  const rawDesc = String(p.description || '').replace(/\s+/g, ' ').trim();
+  const shortDesc = rawDesc.length > 140 ? rawDesc.slice(0, 137).trim() + '…' : rawDesc;
+  const desc = shortDesc ? `<p class="pcard-desc">${esc(shortDesc)}</p>` : '';
   return `
     <a class="tile pcard" href="/product.html?id=${p.id}">
       <div class="pcard-media">
@@ -719,12 +720,12 @@ function injectCartUI() {
     <div id="supportBackdrop" class="cart-backdrop" onclick="closeSupport()"></div>
 
     <!-- Support FAB (above the cart FAB) -->
-    <div class="support-fab" onclick="openSupport()" title="Поддержка" aria-label="Поддержка">
+    <a class="support-fab" href="https://t.me/xtempls_wear" target="_blank" rel="noopener noreferrer" title="Поддержка" aria-label="Написать в Telegram @xtempls_wear">
       <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
         <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 01-3.46 0"/>
       </svg>
-    </div>
+    </a>
 
     <!-- FAB -->
     <div class="cart-btn" onclick="openCart()" role="button" aria-label="Корзина">
@@ -1721,33 +1722,49 @@ if (isProductPage) {
 }
 
 // ── Homepage novelties ────────────────────────────────────────────────────────
-function customOrderCardHtml() {
+function applyHomeCopy(data) {
+  if (!data) return;
+  document.querySelectorAll('[data-copy]').forEach((el) => {
+    const key = el.getAttribute('data-copy');
+    if (data[key]) el.textContent = data[key];
+  });
+}
+
+function customOrderCardHtml(home) {
+  const title = esc((home && home.custom_title) || 'Свой дизайн');
+  const text = esc((home && home.custom_text) || 'Напиши нам и мы во всём поможем.');
   return `<a class="tile hero-card hero-custom" href="/design.html">
-    <h2>Свой дизайн</h2>
-    <p>Напиши нам и мы во всём поможем.</p>
+    <h2>${title}</h2>
+    <p>${text}</p>
     <span class="hero-send" aria-hidden="true">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
     </span>
   </a>`;
 }
 
-async function renderHomeCollections() {
+async function renderHomeCollections(home) {
   const grid = document.getElementById('collectionCards');
   if (!grid) return;
+  const copy = home || {};
   try {
     const res = await fetch(`${API}/categories/`);
     if (!res.ok) return;
     const cats = await res.json();
+    const images = copy.category_images || {};
+    const fallback = '/assets/img/df408010-4ee2-4a18-ba06-74ef893e28b9-16613473.jpeg';
     const cards = (cats || []).map((cat, i) => {
-      const dark = i % 2 === 1;
+      const slug = String(cat.slug || cat.name || '').toLowerCase();
+      const isLyrics = slug.includes('lyric');
       const text = cat.description ? esc(cat.description) : 'Открыть товары этой коллекции.';
-      const photo = i === 0
-        ? `<div class="hero-photo"><img src="/assets/img/df408010-4ee2-4a18-ba06-74ef893e28b9-16613473.jpeg" alt="${esc(cat.name)}" /></div>`
+      const customPhoto = images[String(cat.id)] || '';
+      const photoUrl = customPhoto || (!isLyrics && i === 0 ? fallback : '');
+      const photo = photoUrl
+        ? `<div class="hero-photo"><img src="${esc(photoUrl)}" alt="${esc(cat.name)}" /></div>`
         : '';
-      const bars = dark
+      const bars = !photoUrl
         ? `<div class="lyric-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>`
         : '';
-      return `<a class="tile hero-card ${dark ? 'hero-lyrics' : 'hero-basic'}" href="/catalog.html?category=${encodeURIComponent(cat.id)}">
+      return `<a class="tile hero-card ${isLyrics ? 'hero-lyrics' : 'hero-basic'}" href="/catalog.html?category=${encodeURIComponent(cat.id)}">
         <div class="hero-card-head"><span>${esc(cat.name)}</span><span class="tag">${cat.product_count ? 'В наличии' : 'Коллекция'}</span></div>
         <h2>${esc(cat.name)}</h2>
         <p>${text}</p>
@@ -1756,14 +1773,20 @@ async function renderHomeCollections() {
     }).join('');
     const count = (cats || []).length + 1;
     grid.dataset.count = String(count);
-    grid.innerHTML = (cards || `<a class="tile hero-card hero-basic" href="/catalog.html"><div class="hero-card-head"><span>Каталог</span></div><h2>Коллекции</h2><p>Сейчас нет включённых коллекций.</p></a>`) + customOrderCardHtml();
+    grid.innerHTML = (cards || `<a class="tile hero-card hero-basic" href="/catalog.html"><div class="hero-card-head"><span>Каталог</span></div><h2>Коллекции</h2><p>Сейчас нет включённых коллекций.</p></a>`) + customOrderCardHtml(copy);
   } catch (e) {
     console.error('Failed to load collections', e);
   }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  renderHomeCollections();
+  let home = null;
+  try {
+    const homeRes = await fetch(`${API}/homepage`);
+    if (homeRes.ok) home = await homeRes.json();
+  } catch (e) { /* остаются тексты из вёрстки */ }
+  applyHomeCopy(home);
+  renderHomeCollections(home);
   const section = document.getElementById('homeNovelties');
   const row = document.getElementById('homeNoveltiesRow');
   if (!section || !row) return;

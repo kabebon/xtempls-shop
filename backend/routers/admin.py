@@ -250,6 +250,31 @@ async def admin_upload_image(
     return {"id": image.id, "url": url, "is_primary": image.is_primary}
 
 
+@router.post("/admin/homepage/image")
+async def admin_upload_homepage_image(
+    file: UploadFile = File(...),
+    category_id: Optional[int] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    _: AdminUser = Depends(get_current_admin),
+):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Use: {ALLOWED_EXTENSIONS}")
+    contents = await file.read()
+    if len(contents) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Файл слишком большой (макс. 20МБ)")
+    img = Image.open(io.BytesIO(contents))
+    img = img.convert("RGB")
+    if img.width > MAX_IMAGE_SIZE or img.height > MAX_IMAGE_SIZE:
+        img.thumbnail((MAX_IMAGE_SIZE, MAX_IMAGE_SIZE), Image.LANCZOS)
+    filename = f"home_{uuid.uuid4().hex}.webp"
+    img.save(UPLOAD_DIR / filename, "WEBP", quality=85)
+    url = f"/uploads/{filename}"
+    if category_id is not None:
+        await crud.save_homepage(db, {"category_images": {str(category_id): url}})
+    return {"url": url, "category_id": category_id}
+
+
 @router.delete("/admin/images/{image_id}", status_code=204)
 async def admin_delete_image(
     image_id: int,

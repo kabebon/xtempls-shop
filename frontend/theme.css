@@ -172,8 +172,19 @@ ul { margin: 0; padding: 0; list-style: none; }
   letter-spacing: -0.03em;
   max-width: 100%;
 }
+.hero-title { display: block; }
+.hero-slogan {
+  display: block;
+  margin-top: 12px;
+  max-width: 22em;
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: clamp(1rem, 2.6vw, 1.2rem);
+  line-height: 1.35;
+  letter-spacing: 0;
+}
 @media (min-width: 768px) {
-  .hero h1 { max-width: 14ch; font-size: clamp(1.85rem, 4vw, 2.5rem); }
+  .hero h1 { font-size: clamp(1.85rem, 4vw, 2.5rem); }
 }
 .hero-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .hero-note { margin-top: 18px; font-size: 0.78rem; font-weight: 600; }
@@ -217,12 +228,13 @@ ul { margin: 0; padding: 0; list-style: none; }
   display: grid; place-items: center;
 }
 .hero-photo {
-  display: none;
-  position: absolute; right: 16px; bottom: -24px;
-  width: 210px; height: 210px; border-radius: 14px; overflow: hidden;
+  display: block;
+  position: absolute; right: 12px; bottom: 12px;
+  width: 112px; height: 112px; border-radius: 14px; overflow: hidden;
   box-shadow: 0 16px 40px rgba(20, 22, 28, 0.16);
   background: var(--surface);
 }
+.hero-basic { min-height: 280px; }
 .hero-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 @media (min-width: 768px) {
@@ -231,7 +243,8 @@ ul { margin: 0; padding: 0; list-style: none; }
   .hero-grid[data-count="2"] { grid-template-columns: 1.6fr 0.55fr; }
   .hero-grid[data-count="3"] { grid-template-columns: 1.6fr 0.9fr 0.5fr; }
   .hero-card { min-height: 300px; }
-  .hero-photo { display: block; }
+  .hero-basic { min-height: 300px; }
+  .hero-photo { width: 210px; height: 210px; right: 16px; bottom: -24px; }
 }
 
 .section { padding: 56px 0; }
@@ -786,6 +799,7 @@ textarea.chk-input { height: auto; padding: 12px 14px; resize: vertical; }
   bottom: 80px;
   background: var(--card);
   color: var(--fg);
+  text-decoration: none;
   box-shadow: 0 6px 20px rgba(20, 22, 28, 0.18);
 }
 .cart-btn {
@@ -795,6 +809,10 @@ textarea.chk-input { height: auto; padding: 12px 14px; resize: vertical; }
   box-shadow: 0 6px 20px rgba(20, 22, 28, 0.22) !important;
 }
 .cart-btn svg, .support-fab svg { width: 20px; height: 20px; }
+@media (min-width: 1024px) {
+  .cart-btn { bottom: 84px !important; }
+  .support-fab { bottom: 144px !important; }
+}
 .cart-count {
   position: absolute; top: -2px; right: -2px;
   min-width: 20px; height: 20px; padding: 0 4px;

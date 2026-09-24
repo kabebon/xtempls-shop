@@ -125,7 +125,8 @@ async def get_products(
             stock_status=p.stock_status,
             is_featured=p.is_featured,
             primary_image=primary_img,
-            category_id=p.category_id
+            category_id=p.category_id,
+            description=(p.description or None),
         ))
 
     return {
@@ -1760,6 +1761,20 @@ async def seed_site_pages(db: AsyncSession) -> None:
             sort_order=page.get("sort_order") or 0,
         ))
         added = True
+    phrases = (
+        ("(сумму задаёт магазин в админке)", "после подтверждения почты"),
+        ("Какую долю заказа можно закрыть бонусами, задаёт магазин.",
+         "Бонусами можно оплатить часть заказа. Доступная сумма видна в корзине."),
+    )
+    pages = await db.execute(select(SitePage))
+    for page in pages.scalars():
+        text = page.content or ""
+        updated = text
+        for old, new in phrases:
+            updated = updated.replace(old, new)
+        if updated != text:
+            page.content = updated
+            added = True
     if added:
         await db.commit()
 
@@ -1797,6 +1812,47 @@ async def _get_app_setting_raw(db: AsyncSession, key: str):
     result = await db.execute(select(AppSetting).where(AppSetting.key == key))
     row = result.scalar_one_or_none()
     return None if row is None else row.value
+
+
+async def get_homepage(db: AsyncSession) -> dict:
+    from homepage_defaults import HOME_DEFAULTS
+    stored = await _get_app_setting_raw(db, "homepage")
+    data = {k: (dict(v) if isinstance(v, dict) else v) for k, v in HOME_DEFAULTS.items()}
+    if isinstance(stored, dict):
+        images = stored.get("category_images")
+        if isinstance(images, dict):
+            data["category_images"] = {
+                str(i): str(url) for i, url in images.items() if url
+            }
+        for key, value in stored.items():
+            if key == "category_images" or key not in HOME_DEFAULTS:
+                continue
+            if isinstance(value, str):
+                data[key] = value
+    return data
+
+
+async def save_homepage(db: AsyncSession, patch: dict) -> dict:
+    data = await get_homepage(db)
+    if not isinstance(patch, dict):
+        return data
+    images = dict(data.get("category_images") or {})
+    incoming = patch.get("category_images")
+    if isinstance(incoming, dict):
+        for key, url in incoming.items():
+            if url:
+                images[str(key)] = str(url)[:500]
+            else:
+                images.pop(str(key), None)
+        data["category_images"] = images
+    for key, value in patch.items():
+        if key == "category_images" or key not in data:
+            continue
+        if isinstance(value, str):
+            data[key] = value.strip()
+    await _set_app_setting_raw(db, "homepage", data)
+    await db.commit()
+    return data
 
 
 async def _set_app_setting_raw(db: AsyncSession, key: str, value) -> None:
