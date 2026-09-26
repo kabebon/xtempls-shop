@@ -41,6 +41,7 @@ class Product(Base):
     stock_status = Column(SAEnum(StockStatus), default=StockStatus.in_stock, nullable=False)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
+    is_new = Column(Boolean, default=False, nullable=False, server_default="0")
     sort_order = Column(Integer, default=0)
     size_chart = Column(JSON, nullable=True)  # {"S": "42-44 см", "M": "46-48 см", ...}
     created_at = Column(DateTime(timezone=True), server_default=func.now())

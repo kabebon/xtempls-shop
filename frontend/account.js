@@ -645,22 +645,17 @@ function paintReferral(data) {
     if (data.program_enabled === false) {
       rules.textContent = 'Реферальная программа сейчас на паузе. Ссылку и код всё равно можно копировать — начисления включит магазин.';
     } else {
-      const bits = [];
-      if (data.signup_bonus_enabled !== false) {
-        bits.push(`за регистрацию друга вам +${fmtPrice(data.registration_bonus)}`);
-      }
-      if (data.invitee_bonus_enabled) {
-        bits.push(`друг тоже получает ${fmtPrice(data.invitee_bonus)}`);
+      const bits = ['за регистрацию друга бонусы не начисляются'];
+      if (data.first_purchase_bonus_enabled !== false) {
+        bits.push(`за его первую покупку вам +${fmtPrice(data.first_purchase_bonus || 0)}`);
       }
       if (data.purchase_cashback_enabled !== false) {
-        bits.push(`с каждой его покупки по вашему коду вам ${data.purchase_cashback_percent}% на бонусы`);
+        bits.push(`с каждой следующей его покупки вам ${data.purchase_cashback_percent}%`);
       }
       if (data.buyer_discount_enabled !== false) {
-        bits.push(`ему скидка ${data.discount_percent}%`);
+        bits.push(`по вашему промокоду ему скидка ${data.discount_percent}%`);
       }
-      rules.innerHTML = bits.length
-        ? `Как это работает: ${bits.join('; ')}. Бонусами можно оплатить заказ в корзине.`
-        : 'Делитесь ссылкой и промокодом — бонусы приходят на счёт в этом кабинете.';
+      rules.innerHTML = `Как это работает: ${bits.join('; ')}. Бонусами можно оплатить до ${data.max_bonus_spend_percent ?? 99}% заказа.`;
     }
   }
 }
@@ -744,7 +739,7 @@ async function setupBonuses() {
     box.innerHTML = data.transactions.map(t => `
       <div class="bonus-row">
         <div>
-          <div class="bonus-reason">${escapeHtml(t.reason || 'Бонус')}</div>
+          <div class="bonus-reason">${t.type === 'accrual' ? 'Начисление' : 'Списание'}</div>
           <div class="bonus-date">${new Date(t.created_at).toLocaleDateString('ru-RU')}</div>
         </div>
         <div class="bonus-amount ${t.type}">${t.type === 'accrual' ? '+' : '−'}${fmtPrice(t.amount)}</div>

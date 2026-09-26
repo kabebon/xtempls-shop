@@ -106,6 +106,7 @@ class ProductBase(BaseModel):
     stock_status: StockStatus = StockStatus.in_stock
     is_active: bool = True
     is_featured: bool = False
+    is_new: bool = False
     sort_order: int = 0
     size_chart: Optional[Dict[str, str]] = None  # e.g. {"S": "42-44", "M": "46-48"}
 
@@ -124,6 +125,7 @@ class ProductUpdate(BaseModel):
     stock_status: Optional[StockStatus] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
+    is_new: Optional[bool] = None
     sort_order: Optional[int] = None
     sizes: Optional[List[str]] = None
     size_chart: Optional[Dict[str, str]] = None
@@ -149,6 +151,7 @@ class ProductListOut(BaseModel):
     old_price: Optional[Decimal] = None
     stock_status: StockStatus
     is_featured: bool
+    is_new: bool = False
     primary_image: Optional[str] = None
     category_id: Optional[int] = None
     description: Optional[str] = None
@@ -473,6 +476,8 @@ class ReferralSettings(BaseModel):
     welcome_bonus: Decimal = Field(Decimal("0"), ge=0)
     purchase_cashback_enabled: bool = True
     purchase_cashback_percent: Decimal = Field(..., ge=0, le=100)
+    first_purchase_bonus_enabled: bool = True
+    first_purchase_bonus: Decimal = Field(Decimal("1000"), ge=0)
     buyer_discount_enabled: bool = True
     discount_percent: Decimal = Field(..., ge=0, le=100)
     max_bonus_spend_percent: Decimal = Field(..., ge=0, le=100)
@@ -491,6 +496,8 @@ class ReferralSettingsUpdate(BaseModel):
     welcome_bonus: Optional[Decimal] = Field(None, ge=0)
     purchase_cashback_enabled: Optional[bool] = None
     purchase_cashback_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    first_purchase_bonus_enabled: Optional[bool] = None
+    first_purchase_bonus: Optional[Decimal] = Field(None, ge=0)
     buyer_discount_enabled: Optional[bool] = None
     discount_percent: Optional[Decimal] = Field(None, ge=0, le=100)
     max_bonus_spend_percent: Optional[Decimal] = Field(None, ge=0, le=100)

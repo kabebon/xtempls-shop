@@ -124,6 +124,7 @@ async def get_products(
             old_price=p.old_price,
             stock_status=p.stock_status,
             is_featured=p.is_featured,
+            is_new=bool(p.is_new),
             primary_image=primary_img,
             category_id=p.category_id,
             description=(p.description or None),
@@ -1255,6 +1256,9 @@ async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
         "earned_total": earned,
         "registration_bonus": ref_settings["registration_bonus"],
         "purchase_cashback_percent": ref_settings["purchase_cashback_percent"],
+        "first_purchase_bonus_enabled": ref_settings.get("first_purchase_bonus_enabled", True),
+        "first_purchase_bonus": ref_settings.get("first_purchase_bonus", 0),
+        "max_bonus_spend_percent": ref_settings.get("max_bonus_spend_percent", 99),
         "discount_percent": ref_settings["discount_percent"],
         "program_enabled": ref_settings.get("program_enabled", True),
         "signup_bonus_enabled": ref_settings.get("signup_bonus_enabled", True),
@@ -1397,17 +1401,19 @@ async def cancel_stale_pending_orders(db: AsyncSession,
 
 REFERRAL_SETTING_DEFAULTS = {
     "program_enabled": True,                       # мастер-выключатель
-    "signup_bonus_enabled": True,                  # бонус держателю за регистрацию друга
-    "registration_bonus": Decimal("100"),          # ₽ держателю
+    "signup_bonus_enabled": False,                 # бонус держателю за регистрацию — выключен
+    "registration_bonus": Decimal("0"),            # ₽ держателю за регистрацию
     "invitee_bonus_enabled": False,                # бонус самому приглашённому
     "invitee_bonus": Decimal("0"),                 # ₽ приглашённому
     "welcome_bonus_enabled": False,                # бонус каждому новому аккаунту (не только по реф. ссылке)
     "welcome_bonus": Decimal("0"),                 # ₽ новому клиенту
-    "purchase_cashback_enabled": True,             # кэшбэк держателю с покупки по промо
+    "purchase_cashback_enabled": True,             # % пригласившему со 2-й и далее покупки друга
     "purchase_cashback_percent": Decimal("5"),     # %
+    "first_purchase_bonus_enabled": True,          # фикс за первую покупку друга
+    "first_purchase_bonus": Decimal("1000"),       # ₽
     "buyer_discount_enabled": True,                # скидка покупателю по реф. промокоду
     "discount_percent": Decimal("5"),              # %
-    "max_bonus_spend_percent": Decimal("100"),     # сколько % заказа можно закрыть бонусами
+    "max_bonus_spend_percent": Decimal("99"),      # сколько % заказа можно закрыть бонусами
     "min_order_amount": Decimal("0"),              # мин. сумма оплаты для кэшбэка
     "allow_self_promo": False,                     # свой код на свои покупки
     "cashback_base": "paid",                       # paid | subtotal
@@ -1416,7 +1422,7 @@ REFERRAL_SETTING_DEFAULTS = {
 _REF_SETTING_KEYS = {name: f"referral.{name}" for name in REFERRAL_SETTING_DEFAULTS}
 _BOOL_SETTINGS = {
     "program_enabled", "signup_bonus_enabled", "invitee_bonus_enabled",
-    "welcome_bonus_enabled",
+    "welcome_bonus_enabled", "first_purchase_bonus_enabled",
     "purchase_cashback_enabled", "buyer_discount_enabled", "allow_self_promo",
 }
 _STR_SETTINGS = {"cashback_base"}
@@ -1553,38 +1559,40 @@ async def grant_referral_signup_bonus(db: AsyncSession, invitee: User) -> None:
 
 
 async def grant_referral_purchase_cashback(db: AsyncSession, order: Order) -> None:
-    """Кэшбэк держателю промокода после оплаты заказа. Идемпотентно."""
+    """Бонус пригласившему после оплаты заказа друга, который пришёл по ссылке.
+
+    Первая оплаченная покупка этого друга — фиксированная сумма.
+    Каждая следующая — процент от заказа. За регистрацию ничего не начисляется.
+    """
     if not order or order.referral_cashback_paid:
         return
-    if order.payment_status != PaymentStatus.paid:
+    if order.payment_status != PaymentStatus.paid or not order.user_id:
         return
     ref_settings = await get_referral_settings(db)
-    if not ref_settings.get("program_enabled", True) or not ref_settings.get("purchase_cashback_enabled", True):
-        order.referral_cashback_paid = True
-        await db.commit()
-        return
-    promo_code = None
-    if order.items:
-        promo_code = next((i.promo_code for i in order.items if i.promo_code), None)
-    if not promo_code:
+    if not ref_settings.get("program_enabled", True):
         order.referral_cashback_paid = True
         await db.commit()
         return
 
-    promo, _ = await resolve_promo_code(db, promo_code, buyer_user_id=None)
-    owner_id = promo.owner_user_id if promo else None
-    if not owner_id:
-        owner = (
-            await db.execute(select(User).where(User.referral_code == promo_code.upper()))
-        ).scalar_one_or_none()
-        owner_id = owner.id if owner else None
-    if not owner_id or owner_id == order.user_id:
+    buyer = await get_user(db, order.user_id)
+    referrer_id = buyer.referred_by_id if buyer else None
+    if not referrer_id or referrer_id == order.user_id:
         order.referral_cashback_paid = True
         await db.commit()
         return
 
-    percent = Decimal(promo.cashback_percent) if promo and promo.cashback_percent is not None \
-        else Decimal(ref_settings["purchase_cashback_percent"])
+    previous_paid = (
+        await db.execute(
+            select(func.count()).select_from(Order).where(
+                Order.user_id == order.user_id,
+                Order.id != order.id,
+                Order.payment_status == PaymentStatus.paid,
+                Order.is_deleted == False,
+            )
+        )
+    ).scalar() or 0
+    is_first = previous_paid == 0
+
     if ref_settings.get("cashback_base") == "subtotal":
         base_amount = sum(
             (Decimal(i.product_price) * int(i.quantity or 1) for i in (order.items or [])),
@@ -1597,12 +1605,23 @@ async def grant_referral_purchase_cashback(db: AsyncSession, order: Order) -> No
         order.referral_cashback_paid = True
         await db.commit()
         return
-    cashback = (base_amount * percent / Decimal(100)).quantize(Decimal("0.01"))
+
+    if is_first and ref_settings.get("first_purchase_bonus_enabled", True):
+        cashback = Decimal(ref_settings.get("first_purchase_bonus") or 0).quantize(Decimal("0.01"))
+        reason = f"Кэшбэк за первую покупку реферала, заказ #{order.id}"
+    elif (not is_first) and ref_settings.get("purchase_cashback_enabled", True):
+        percent = Decimal(ref_settings["purchase_cashback_percent"])
+        cashback = (base_amount * percent / Decimal(100)).quantize(Decimal("0.01"))
+        reason = f"Кэшбэк {percent}% за заказ #{order.id} реферала"
+    else:
+        cashback = Decimal("0")
+        reason = ""
+
     order.referral_cashback_paid = True
     if cashback > 0:
         await add_bonus_transaction(
-            db, owner_id, cashback,
-            reason=f"Кэшбэк за заказ #{order.id} по промокоду {promo_code}",
+            db, referrer_id, cashback,
+            reason=reason,
             tx_type=BonusTxType.accrual,
             order_id=order.id,
             commit=False,

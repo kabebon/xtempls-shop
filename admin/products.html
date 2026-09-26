@@ -191,9 +191,12 @@
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;" title="Эти товары попадают в блок «Хиты сезона» на главной">
               <input type="checkbox" id="fFeatured" /> Хит сезона
             </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;" title="Метка NEW на карточке. Не связана с хитом сезона.">
+              <input type="checkbox" id="fNew" /> Метка NEW
+            </label>
           </div>
           <div class="form-group full" style="margin-top:-6px;">
-            <div style="font-size:12px;color:var(--text-muted);">Галочка «Хит сезона» выводит товар на главную, перед блоком «О нас».</div>
+            <div style="font-size:12px;color:var(--text-muted);">«Хит сезона» выводит товар на главную. «NEW» — отдельная метка на карточке, сама не ставится.</div>
           </div>
           <div class="form-group">
             <label class="form-label">Сортировка</label>
@@ -311,7 +314,7 @@
               : `<div class="product-thumb-placeholder">🛍</div>`}
           </td>
           <td>
-            <div style="font-weight:600">${p.name}${p.is_featured ? ' <span class="badge badge-yellow">Хит</span>' : ''}</div>
+            <div style="font-weight:600">${p.name}${p.is_featured ? ' <span class="badge badge-yellow">Хит</span>' : ''}${p.is_new ? ' <span class="badge badge-green">NEW</span>' : ''}</div>
             <div style="font-size:11px;color:var(--text-muted)">${p.slug}</div>
           </td>
           <td>${categories.find(c => c.id === p.category_id)?.name || '—'}</td>
@@ -392,6 +395,7 @@
     document.getElementById('productForm').reset();
     document.getElementById('fActive').checked = true;
     document.getElementById('fFeatured').checked = false;
+    document.getElementById('fNew').checked = false;
     document.getElementById('fSort').value = '0';
     document.getElementById('productId').value = '';
     document.getElementById('imagesSection').style.display = 'none';
@@ -540,6 +544,7 @@
       stock_status: document.getElementById('fStock').value,
       is_active: document.getElementById('fActive').checked,
       is_featured: document.getElementById('fFeatured').checked,
+      is_new: document.getElementById('fNew').checked,
       sort_order: parseInt(document.getElementById('fSort').value) || 0,
       description: document.getElementById('fDesc').value.trim() || null,
       sizes: currentSizes,
@@ -591,6 +596,7 @@
     document.getElementById('fStock').value = p.stock_status;
     document.getElementById('fActive').checked = p.is_active;
     document.getElementById('fFeatured').checked = p.is_featured;
+    document.getElementById('fNew').checked = !!p.is_new;
     document.getElementById('fSort').value = p.sort_order;
     document.getElementById('fDesc').value = p.description || '';
 

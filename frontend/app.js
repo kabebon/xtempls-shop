@@ -122,7 +122,11 @@ function favBtnHtml(productId) {
 }
 
 function newBadgeHtml(p) {
-  return p && p.is_featured ? '<span class="badge-new">NEW</span>' : '';
+  if (!p) return '';
+  const parts = [];
+  if (p.is_featured) parts.push('<span class="badge-hit">HIT</span>');
+  if (p.is_new) parts.push('<span class="badge-new">NEW</span>');
+  return parts.join('');
 }
 
 function esc(s) {
@@ -804,8 +808,9 @@ function injectCartUI() {
             <label class="chk-consent-row">
               <input type="checkbox" id="chkConsent" />
               <span class="chk-consent-text">
-                Я согласен с <a href="/public.html" target="_blank" class="chk-consent-link">офертой</a>
-                и <a href="/public.html" target="_blank" class="chk-consent-link">политикой конфиденциальности</a>
+                Я согласен с <a href="/public.html#offer" target="_blank" class="chk-consent-link">офертой</a>,
+                <a href="/public.html#agreement" target="_blank" class="chk-consent-link">пользовательским соглашением</a>
+                и <a href="/public.html#privacy" target="_blank" class="chk-consent-link">политикой конфиденциальности</a>
               </span>
             </label>
             <button type="submit" id="submitOrderBtn" class="checkout-submit-btn">Отправить заказ</button>
@@ -1245,6 +1250,13 @@ if (isCatalogPage) {
     const requestedCategory = (qs.get('category') || '').trim();
     await loadFavoriteIds();
     await loadCategories();
+    const toTop = document.getElementById('toTopBtn');
+    if (toTop) {
+      const onScroll = () => toTop.classList.toggle('show', window.scrollY > 480);
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+      toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    }
     let matchedId = '';
     if (requestedCategory) {
       const safe = window.CSS && CSS.escape ? CSS.escape(requestedCategory) : requestedCategory;
@@ -1257,7 +1269,6 @@ if (isCatalogPage) {
       return;
     }
     if (currentFeatured) markActiveChip('featured');
-    await loadFeatured();
     await loadProducts(true);
   })();
 }
@@ -1563,15 +1574,19 @@ if (isProductPage) {
 
       document.title = `${p.name} — XTEMPLS`;
       productName.textContent = p.name;
-      if (p.is_featured) {
-        const exist = document.getElementById('newBadgeDetail');
-        if (!exist && productName.parentElement) {
-          const badge = document.createElement('span');
-          badge.id = 'newBadgeDetail';
-          badge.className = 'new-badge new-badge-inline';
-          badge.textContent = 'Хит';
-          productName.insertAdjacentElement('afterend', badge);
-        }
+      if (p.is_featured && !document.getElementById('hitBadgeDetail') && productName.parentElement) {
+        const badge = document.createElement('span');
+        badge.id = 'hitBadgeDetail';
+        badge.className = 'badge-hit new-badge-inline';
+        badge.textContent = 'HIT';
+        productName.insertAdjacentElement('afterend', badge);
+      }
+      if (p.is_new && !document.getElementById('newBadgeDetail') && productName.parentElement) {
+        const badge = document.createElement('span');
+        badge.id = 'newBadgeDetail';
+        badge.className = 'badge-new new-badge-inline';
+        badge.textContent = 'NEW';
+        productName.insertAdjacentElement('afterend', badge);
       }
 
       // Category

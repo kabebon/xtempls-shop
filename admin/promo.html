@@ -72,7 +72,7 @@
         <div class="ref-admin-head">
           <div>
             <div class="ref-admin-title">Как устроена рефералка</div>
-            <p class="ref-admin-lead">Клиент в кабинете видит свой код и две ссылки. Друг регистрируется по ссылке и/или покупает по коду. Ниже — что именно начислять. Ручные промокоды (SUMMER10 и т.п.) этими тумблерами не трогаются.</p>
+            <p class="ref-admin-lead">Друг регистрируется по ссылке. Бонус пригласившему приходит только после оплаты заказа этого друга: фиксированная сумма за первую покупку и процент с каждой следующей. За саму регистрацию пригласивший ничего не получает.</p>
           </div>
         </div>
 
@@ -88,14 +88,14 @@
           </label>
 
           <label class="ref-switch">
-            <input type="checkbox" id="rsSignupOn" />
+            <input type="checkbox" id="rsFirstOn" checked />
             <span>
-              <b>Платить пригласившему за регистрацию друга</b>
-              <small>После того как друг подтвердил email. Сумма справа.</small>
+              <b>Бонус за первую покупку друга</b>
+              <small>Начисляется пригласившему, когда друг, пришедший по ссылке, впервые оплатил заказ.</small>
             </span>
           </label>
-          <label class="form-label">Сколько начислить пригласившему, ₽
-            <input class="form-input" type="number" min="0" step="1" id="rsSignup" />
+          <label class="form-label">Сумма за первую покупку, ₽
+            <input class="form-input" type="number" min="0" step="1" id="rsFirst" value="1000" />
           </label>
 
           <label class="ref-switch">
@@ -123,11 +123,11 @@
           <label class="ref-switch">
             <input type="checkbox" id="rsCashbackOn" />
             <span>
-              <b>Кэшбэк пригласившему с покупок друга</b>
-              <small>Только если друг ввёл промокод пригласившего и заказ оплачен.</small>
+              <b>Процент с каждой следующей покупки друга</b>
+              <small>Со второй оплаченной покупки и дальше. Друг должен быть зарегистрирован по ссылке.</small>
             </span>
           </label>
-          <label class="form-label">Процент кэшбэка пригласившему
+          <label class="form-label">Процент со следующей покупки
             <input class="form-input" type="number" min="0" max="100" step="1" id="rsCashback" />
           </label>
 
@@ -152,7 +152,7 @@
 
           <label class="form-label">Сколько заказа можно закрыть бонусами, %
             <input class="form-input" type="number" min="0" max="100" step="1" id="rsMaxSpend" />
-            <small class="ref-field-hint">100 = можно оплатить заказ целиком с бонусного счёта.</small>
+            <small class="ref-field-hint">99 = бонусами можно закрыть 99% заказа, 1% остаётся к оплате.</small>
           </label>
           <label class="form-label">Минимальная сумма заказа для кэшбэка, ₽
             <input class="form-input" type="number" min="0" step="1" id="rsMinOrder" />
@@ -168,7 +168,7 @@
 
         <div class="ref-admin-actions">
           <button class="btn btn-primary" onclick="saveReferralSettings()">Сохранить правила</button>
-          <span class="ref-admin-note">Бонус за регистрацию — после подтверждения почты. Кэшбэк с покупки — после оплаты.</span>
+          <span class="ref-admin-note">Начисление пригласившему — только после оплаты заказа друга.</span>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -255,13 +255,13 @@
     if (!res.ok) return;
     const s = await res.json();
     document.getElementById('rsEnabled').checked = !!s.program_enabled;
-    document.getElementById('rsSignupOn').checked = !!s.signup_bonus_enabled;
+    document.getElementById('rsFirstOn').checked = s.first_purchase_bonus_enabled !== false;
     document.getElementById('rsInviteeOn').checked = !!s.invitee_bonus_enabled;
     document.getElementById('rsWelcomeOn').checked = !!s.welcome_bonus_enabled;
     document.getElementById('rsCashbackOn').checked = !!s.purchase_cashback_enabled;
     document.getElementById('rsDiscountOn').checked = !!s.buyer_discount_enabled;
     document.getElementById('rsSelfPromo').checked = !!s.allow_self_promo;
-    document.getElementById('rsSignup').value = s.registration_bonus;
+    document.getElementById('rsFirst').value = s.first_purchase_bonus ?? 1000;
     document.getElementById('rsInvitee').value = s.invitee_bonus || 0;
     document.getElementById('rsWelcome').value = s.welcome_bonus || 0;
     document.getElementById('rsCashback').value = s.purchase_cashback_percent;
@@ -284,10 +284,11 @@
       return;
     }
     const parts = ['<b>Пример:</b> Аня отправила код другу Максиму.'];
-    if (on('rsSignupOn') && n('rsSignup') > 0) {
-      parts.push(`Максим зарегистрировался и подтвердил почту → Ане <b>+${n('rsSignup')} ₽</b> на бонусы.`);
+    parts.push('За регистрацию Максима Аня ничего не получает.');
+    if (on('rsFirstOn') && n('rsFirst') > 0) {
+      parts.push(`Максим впервые оплатил заказ → Ане <b>+${n('rsFirst')} ₽</b>.`);
     } else {
-      parts.push('За саму регистрацию Аня ничего не получает.');
+      parts.push('За первую покупку друга фиксированный бонус выключен.');
     }
     if (on('rsInviteeOn') && n('rsInvitee') > 0) {
       parts.push(`Максим тоже получает <b>${n('rsInvitee')} ₽</b> на свой счёт за переход по ссылке.`);
@@ -305,9 +306,9 @@
         ? 'суммы товаров после скидки'
         : 'той суммы, которую Максим оплатил картой';
       const min = n('rsMinOrder');
-      parts.push(`После оплаты Ане кэшбэк <b>${n('rsCashback')}%</b> с ${base}${min > 0 ? `, если заказ от ${min} ₽` : ''}.`);
+      parts.push(`С каждой следующей покупки Максима Ане <b>${n('rsCashback')}%</b> с ${base}${min > 0 ? `, если заказ от ${min} ₽` : ''}.`);
     } else {
-      parts.push('С покупок друга Аня кэшбэк не получает.');
+      parts.push('Со следующих покупок друга процент не начисляется.');
     }
     parts.push(on('rsSelfPromo')
       ? '<b>Внимание:</b> Аня сможет ввести свой код на свой заказ и получить скидку сама себе.'
@@ -320,13 +321,15 @@
   window.saveReferralSettings = async function() {
     const body = {
       program_enabled: document.getElementById('rsEnabled').checked,
-      signup_bonus_enabled: document.getElementById('rsSignupOn').checked,
+      signup_bonus_enabled: false,
       invitee_bonus_enabled: document.getElementById('rsInviteeOn').checked,
       welcome_bonus_enabled: document.getElementById('rsWelcomeOn').checked,
       purchase_cashback_enabled: document.getElementById('rsCashbackOn').checked,
       buyer_discount_enabled: document.getElementById('rsDiscountOn').checked,
       allow_self_promo: document.getElementById('rsSelfPromo').checked,
-      registration_bonus: parseFloat(document.getElementById('rsSignup').value),
+      first_purchase_bonus_enabled: document.getElementById('rsFirstOn').checked,
+      first_purchase_bonus: parseFloat(document.getElementById('rsFirst').value),
+      registration_bonus: 0,
       invitee_bonus: parseFloat(document.getElementById('rsInvitee').value),
       welcome_bonus: parseFloat(document.getElementById('rsWelcome').value),
       purchase_cashback_percent: parseFloat(document.getElementById('rsCashback').value),
