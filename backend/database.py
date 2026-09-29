@@ -27,10 +27,10 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = ""            # shopId из кабинета ЮKassa
     yookassa_secret_key: str = ""         # секретный ключ
     yookassa_receipts: bool = False       # передавать чек вместе с платежом
-    # self_employed — ИП/физлицо на НПД, чек в «Мой налог»; 54fz — онлайн-касса
-    yookassa_receipt_kind: str = "self_employed"
-    yookassa_vat_code: int = 1            # для НПД всегда 1 (без НДС); для кассы 11 = 22%
-    yookassa_tax_system_code: Optional[int] = None  # 1 ОСН … 6 патент, пусто = не передавать
+    # 54fz — онлайн-касса (ИП на УСН); self_employed — чек НПД в «Мой налог»
+    yookassa_receipt_kind: str = "54fz"
+    yookassa_vat_code: int = 1            # 1 без НДС (ИП на УСН без НДС)
+    yookassa_tax_system_code: Optional[int] = None  # 2 УСН доходы, 3 УСН доходы−расходы; пусто = не передавать
     yookassa_payment_mode: str = "full_prepayment"
     yookassa_payment_subject: str = "commodity"
     yookassa_receipt_timezone: int = 2    # 2 = Москва (UTC+3)

@@ -104,13 +104,13 @@ def _receipt_phone(raw: Optional[str]) -> Optional[str]:
 
 
 def _receipt_kind() -> str:
-    raw = (settings.yookassa_receipt_kind or "self_employed").strip().lower()
+    raw = (settings.yookassa_receipt_kind or "54fz").strip().lower()
     if raw in ("self_employed", "npd", "selfemployed"):
         return "self_employed"
     if raw in ("54fz", "kkt"):
         return "54fz"
-    logger.warning("YOOKASSA_RECEIPT_KIND=%s не распознан, используем self_employed", raw)
-    return "self_employed"
+    logger.warning("YOOKASSA_RECEIPT_KIND=%s не распознан, используем 54fz", raw)
+    return "54fz"
 
 
 def _receipt_customer(order: Order) -> Optional[dict]:

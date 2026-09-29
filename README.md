@@ -222,9 +222,9 @@ FastAPI автоматически генерирует документацию
 | `YOOKASSA_SHOP_ID` | shopId магазина ЮKassa |
 | `YOOKASSA_SECRET_KEY` | Секретный ключ ЮKassa |
 | `YOOKASSA_RECEIPTS` | `true` — передавать чек вместе с платежом. По умолчанию `false` |
-| `YOOKASSA_RECEIPT_KIND` | `self_employed` — чек НПД в «Мой налог»; `54fz` — онлайн-касса |
-| `YOOKASSA_VAT_CODE` | Для НПД всегда `1`. Для кассы: 1 без НДС, 11 = 22% |
-| `YOOKASSA_TAX_SYSTEM_CODE` | Только для `54fz`: 1 ОСН, 2 УСН доходы, 3 УСН доходы−расходы, 6 патент. Для НПД пусто |
+| `YOOKASSA_RECEIPT_KIND` | `54fz` — онлайн-касса ИП на УСН; `self_employed` — чек НПД в «Мой налог» |
+| `YOOKASSA_VAT_CODE` | `1` без НДС, `11` = 22% |
+| `YOOKASSA_TAX_SYSTEM_CODE` | `2` УСН доходы, `3` УСН доходы−расходы. Пусто, если система задана в кабинете |
 | `YOOKASSA_PAYMENT_MODE` | `full_prepayment` (до отгрузки) или `full_payment` |
 | `YOOKASSA_PAYMENT_SUBJECT` | Предмет расчёта, по умолчанию `commodity` |
 | `YOOKASSA_RECEIPT_TIMEZONE` | Часовой пояс чека, `2` = Москва |
