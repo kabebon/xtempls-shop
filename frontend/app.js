@@ -404,13 +404,26 @@ function maxBonusSpend() {
 
 function refreshBonusCapHint() {
   const hint = document.getElementById('bonusCapHint');
-  if (!hint) return;
   const pct = bonusMaxPercent();
+  const input = document.getElementById('chkBonusSpend');
   if (pct == null) {
-    hint.textContent = 'Считаем, сколько можно списать…';
+    if (hint) hint.textContent = 'Считаем, сколько можно списать…';
     return;
   }
-  hint.textContent = `Можно списать не больше ${pct}% заказа — до ${fmt(maxBonusSpend())}. Остаток оплачивается рублями.`;
+  const max = maxBonusSpend();
+  if (input) input.max = String(max);
+  if (hint) hint.textContent = `Не больше ${pct}% заказа — до ${fmt(max)}.`;
+}
+
+function showBonusSpendMessage() {
+  const msg = document.getElementById('bonusSpendMsg');
+  if (!msg) return;
+  const spend = Number(window._bonusSpend || 0);
+  const left = Math.max(0, checkoutBaseAfterPromo() - spend);
+  msg.textContent = spend > 0
+    ? `Спишем ${fmt(spend)} бонусами. К оплате рублями: ${fmt(left)}.`
+    : 'Бонусы не списываются';
+  msg.className = 'promo-msg promo-ok';
 }
 
 function updateCheckoutTotal() {
@@ -419,9 +432,11 @@ function updateCheckoutTotal() {
   const promo = window._appliedPromo;
   const base = cartTotal();
   const afterPromo = checkoutBaseAfterPromo();
-  const spend = Math.min(Number(window._bonusSpend || 0), maxBonusSpend());
+  const prevSpend = Number(window._bonusSpend || 0);
+  const spend = Math.min(prevSpend, maxBonusSpend());
   window._bonusSpend = spend;
   refreshBonusCapHint();
+  if (spend !== prevSpend) showBonusSpendMessage();
   const lines = [];
   if (promo && promo.discount_percent) {
     const disc = Math.round(base * promo.discount_percent / 100);
@@ -455,7 +470,6 @@ async function loadCheckoutBonuses() {
     if (avail) avail.textContent = fmt(window._bonusBalance);
     box.style.display = window._bonusBalance > 0 ? '' : 'none';
     refreshBonusCapHint();
-    if (window._bonusSpend) window.applyBonusSpend();
   } catch (e) {
     window._bonusMaxPercent = 99;
     box.style.display = 'none';
@@ -467,30 +481,28 @@ window.toggleBonusSpend = function() {
   if (!controls) return;
   const open = controls.style.display === 'none' || !controls.style.display;
   controls.style.display = open ? 'flex' : 'none';
-  if (open) {
-    const input = document.getElementById('chkBonusSpend');
-    const max = maxBonusSpend();
-    if (input && !input.value) input.value = String(max);
-    window.applyBonusSpend();
-  }
+  if (open) document.getElementById('chkBonusSpend')?.focus();
+};
+
+window.clampBonusInput = function() {
+  const input = document.getElementById('chkBonusSpend');
+  if (!input || bonusMaxPercent() == null || input.value === '') return;
+  const val = Number(input.value);
+  if (Number.isNaN(val)) return;
+  const max = maxBonusSpend();
+  if (val > max) input.value = String(max);
+  else if (val < 0) input.value = '0';
 };
 
 window.applyBonusSpend = function() {
   const input = document.getElementById('chkBonusSpend');
-  const msg = document.getElementById('bonusSpendMsg');
   let val = Number(input?.value || 0);
   if (Number.isNaN(val) || val < 0) val = 0;
   const max = maxBonusSpend();
   if (val > max) val = max;
   window._bonusSpend = moneyDown(val);
-  if (input) input.value = String(window._bonusSpend);
-  if (msg) {
-    const left = Math.max(0, checkoutBaseAfterPromo() - window._bonusSpend);
-    msg.textContent = window._bonusSpend > 0
-      ? `Спишем ${fmt(window._bonusSpend)} бонусами. К оплате рублями: ${fmt(left)}.`
-      : 'Бонусы не списываются';
-    msg.className = 'promo-msg promo-ok';
-  }
+  if (input) input.value = window._bonusSpend > 0 ? String(window._bonusSpend) : '';
+  showBonusSpendMessage();
   updateCheckoutTotal();
 };
 
@@ -876,7 +888,7 @@ function injectCartUI() {
                 <button type="button" class="promo-apply-btn" onclick="toggleBonusSpend()">Списать бонусы</button>
               </div>
               <div id="bonusSpendControls" class="promo-row" style="display:none;margin-top:8px;">
-                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="0.01" placeholder="Сколько списать" />
+                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="0.01" placeholder="Сколько списать" oninput="clampBonusInput()" />
                 <button type="button" class="promo-apply-btn" onclick="applyBonusSpend()">Применить</button>
               </div>
               <div id="bonusSpendMsg" class="promo-msg"></div>
