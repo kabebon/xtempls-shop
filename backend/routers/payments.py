@@ -103,10 +103,17 @@ def _receipt_phone(raw: Optional[str]) -> Optional[str]:
     return None
 
 
-def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
-    """Один чек на сумму списания с карты. Выключен, пока YOOKASSA_RECEIPTS не true."""
-    if not settings.yookassa_receipts:
-        return None
+def _receipt_kind() -> str:
+    raw = (settings.yookassa_receipt_kind or "self_employed").strip().lower()
+    if raw in ("self_employed", "npd", "selfemployed"):
+        return "self_employed"
+    if raw in ("54fz", "kkt"):
+        return "54fz"
+    logger.warning("YOOKASSA_RECEIPT_KIND=%s не распознан, используем self_employed", raw)
+    return "self_employed"
+
+
+def _receipt_customer(order: Order) -> Optional[dict]:
     phone = _receipt_phone(getattr(order, "customer_phone", None)) or _receipt_phone(
         getattr(order, "customer_contact", None)
     )
@@ -116,6 +123,38 @@ def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
             order.id,
         )
         return None
+    return {"phone": phone}
+
+
+def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
+    """Чек на сумму списания с карты. Выключен, пока YOOKASSA_RECEIPTS не true.
+
+    self_employed — чек самозанятого (ИП на НПД тоже): только название, сумма,
+    целое количество и vat_code 1. ЮKassa регистрирует его в «Мой налог».
+    54fz — чек онлайн-кассы для ОСН, УСН или патента.
+    """
+    if not settings.yookassa_receipts:
+        return None
+    customer = _receipt_customer(order)
+    if not customer:
+        return None
+    description = f"Заказ №{order.id}"[:128]
+    money = {"value": _money(amount), "currency": "RUB"}
+
+    if _receipt_kind() == "self_employed":
+        if int(settings.yookassa_vat_code or 1) != 1:
+            logger.warning("Для НПД vat_code всегда 1, YOOKASSA_VAT_CODE проигнорирован")
+        return {
+            "customer": customer,
+            "items": [
+                {
+                    "description": description,
+                    "quantity": 1,
+                    "amount": money,
+                    "vat_code": 1,
+                }
+            ],
+        }
 
     vat = int(settings.yookassa_vat_code or 1)
     if vat < 1 or vat > 12:
@@ -126,19 +165,16 @@ def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
         logger.warning("YOOKASSA_PAYMENT_MODE=%s заменён на full_prepayment", mode)
         mode = "full_prepayment"
     subject = (settings.yookassa_payment_subject or "commodity").strip() or "commodity"
-
-    customer: dict = {"phone": phone}
     name = (getattr(order, "customer_name", None) or "").strip()
     if name:
         customer["full_name"] = name[:256]
-
     receipt: dict = {
         "customer": customer,
         "items": [
             {
-                "description": f"Заказ №{order.id}"[:128],
+                "description": description,
                 "quantity": "1.000",
-                "amount": {"value": _money(amount), "currency": "RUB"},
+                "amount": money,
                 "vat_code": vat,
                 "payment_mode": mode,
                 "payment_subject": subject,
