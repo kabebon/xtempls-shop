@@ -62,6 +62,18 @@ async def seed_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await seed_admin()
+    if (settings.yookassa_shop_id or "").strip() and (settings.yookassa_secret_key or "").strip():
+        logger.info(
+            "ЮKassa: оплата включена. URL для HTTP-уведомлений: %s "
+            "(в кабинете включите payment.succeeded и payment.canceled)",
+            payments_router.notification_url(),
+        )
+    else:
+        logger.warning(
+            "ЮKassa: YOOKASSA_SHOP_ID или YOOKASSA_SECRET_KEY пусты — оплата картой отключена. "
+            "URL уведомлений, когда ключи появятся: %s",
+            payments_router.notification_url(),
+        )
     stale_task = asyncio.create_task(_stale_orders_loop())
     yield
     stale_task.cancel()

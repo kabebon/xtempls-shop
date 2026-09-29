@@ -1,250 +1,387 @@
 """
-ЮМани QuickPay — интеграция оплаты.
+ЮKassa — приём оплаты картой.
 
-Два эндпоинта:
-  POST /api/payments/notify  — webhook от ЮМани (подтверждение платежа)
-  GET  /api/payments/status/{order_id} — статус оплаты по заказу
+  POST /api/payments/notify           — HTTP-уведомление ЮKassa
+  GET  /api/payments/status/{order_id} — статус и ссылка на оплату
+
+Подлинность уведомления не берём из тела запроса: платёж заново
+запрашиваем у API ЮKassa и отмечаем заказ оплаченным только если
+там status=succeeded, валюта RUB и сумма совпадает с заказом.
 """
 
-import hashlib
+import asyncio
 import logging
-import urllib.parse
+import re
 from decimal import Decimal
 from html import escape as html_escape
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db, settings
 import crud
-from models import Order, PaymentStatus, OrderStatus
+from models import Order, OrderStatus, PaymentStatus
 from notifications import send_message, payment_split_text, delivery_block
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["payments"])
 
-QUICKPAY_URL = "https://yoomoney.ru/quickpay/confirm"
+API_BASE = "https://api.yookassa.ru/v3"
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+_create_locks: dict[int, asyncio.Lock] = {}
 
 
-# ─── Генерация ссылки на оплату ───────────────────────────────────────────────
-
-def build_payment_url(order_id: int, amount: Decimal, label: str) -> str:
-    """Формируем ссылку QuickPay по документации ЮМани.
-
-    Параметры:
-        receiver      — номер кошелька получателя
-        quickpay-form — тип формы (shop = приём платежей на сайте)
-        targets       — назначение платежа (покажется покупателю)
-        paymentType   — PC (кошелёк ЮМани) | AC (банковская карта)
-        sum           — сумма к оплате
-        label         — наш уникальный ID, вернётся в webhook
-        successURL    — куда редиректить после оплаты
-    """
-    params = {
-        "receiver": settings.yoomoney_wallet,
-        "quickpay-form": "shop",
-        "targets": f"Заказ №{order_id} в XTEMPLS",
-        "paymentType": "AC",       # банковская карта (покупатель выбирает сам)
-        "sum": str(amount.quantize(Decimal("0.01"))),
-        "label": label,
-        "successURL": f"{settings.webapp_url}/payment-success?order_id={order_id}",
-    }
-    return f"{QUICKPAY_URL}?{urllib.parse.urlencode(params, quote_via=urllib.parse.quote)}"
+class PaymentLookupError(Exception):
+    """ЮKassa временно не ответила. Уведомление нужно повторить."""
 
 
-# ─── Проверка SHA-1 подписи ЮМани ────────────────────────────────────────────
+def notification_url() -> str:
+    """Адрес, который вставляется в кабинет ЮKassa → Интеграция → HTTP-уведомления."""
+    base = (settings.webapp_url or "").rstrip("/")
+    if not base:
+        return "/api/payments/notify"
+    return f"{base}/api/payments/notify"
 
-def verify_yoomoney_signature(form_data: dict, notification_secret: str, raw_body: bytes = b"") -> bool:
-    """Проверяем подлинность уведомления от ЮМани.
-    Поддерживает как старый sha1_hash (устарел с мая 2026), 
-    так и новый sign (HMAC-SHA256).
-    """
-    notification_secret = notification_secret.strip()
-    
-    # 1. Пробуем новый формат (sign)
-    received_sign = form_data.get("sign", "")
-    if received_sign:
-        import hmac
-        import hashlib
-        import urllib.parse
-        
-        # Берем все параметры кроме sign
-        data_to_sign = {k: v for k, v in form_data.items() if k != "sign"}
-        
-        # Сортируем ключи по алфавиту
-        sorted_keys = sorted(data_to_sign.keys())
-        
-        # Формируем строку url-encoded
-        parts = []
-        for k in sorted_keys:
-            parts.append(f"{k}={urllib.parse.quote(str(data_to_sign[k]), safe='')}")
-        
-        data_string = "&".join(parts)
-        
-        computed_sign = hmac.new(
-            notification_secret.encode('utf-8'),
-            data_string.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if hmac.compare_digest(computed_sign, received_sign):
-            return True
-            
-        # 1.1 Фолбэк: возможно подпись считается от сырого тела запроса (без sign=...)
-        if raw_body:
-            try:
-                # Пытаемся вырезать sign из сырого тела
-                raw_str = raw_body.decode('utf-8')
-                import re
-                # Удаляем параметр sign (в начале, в середине, или в конце)
-                raw_str_no_sign = re.sub(r'(&?sign=[^&]*)', '', raw_str).lstrip('&')
-                
-                raw_sign = hmac.new(
-                    notification_secret.encode('utf-8'),
-                    raw_str_no_sign.encode('utf-8'),
-                    hashlib.sha256
-                ).hexdigest()
-                
-                if hmac.compare_digest(raw_sign, received_sign):
-                    logger.info("ЮМани: Подпись совпала по RAW BODY (без сортировки)!")
-                    return True
-            except Exception as e:
-                logger.error(f"Ошибка при проверке raw_body: {e}")
 
-        logger.warning(
-            "ЮМани Sign Mismatch!\nСтрока: %s\nСекрет(len): %d\nОжидаемый: %s\nОжидаемый (raw): %s\nПрисланный: %s",
-            data_string, len(notification_secret), computed_sign, locals().get('raw_sign', 'none'), received_sign
-        )
+def _shop_id() -> str:
+    return (settings.yookassa_shop_id or "").strip()
+
+
+def _secret() -> str:
+    return (settings.yookassa_secret_key or "").strip()
+
+
+def _configured() -> bool:
+    return bool(_shop_id() and _secret())
+
+
+def _lock_for(order_id: int) -> asyncio.Lock:
+    lock = _create_locks.get(order_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _create_locks[order_id] = lock
+    return lock
+
+
+def _money(amount: Decimal) -> str:
+    return f"{Decimal(amount).quantize(Decimal('0.01')):.2f}"
+
+
+def _status_value(order: Order) -> str:
+    return str(getattr(order.payment_status, "value", order.payment_status))
+
+
+def _is_paid(order: Order) -> bool:
+    return _status_value(order) == PaymentStatus.paid.value
+
+
+def _payable(order: Order) -> bool:
+    if not _configured() or _is_paid(order):
         return False
-
-    # 2. Фолбэк на старый формат (sha1_hash)
-    sha1_hash = form_data.get("sha1_hash", "")
-    notification_type = form_data.get("notification_type", "")
-    operation_id      = form_data.get("operation_id", "")
-    amount            = form_data.get("amount", "")
-    currency          = form_data.get("currency", "643")
-    datetime_str      = form_data.get("datetime", "")
-    sender            = form_data.get("sender", "")
-    codepro           = form_data.get("codepro", "false")
-    label             = form_data.get("label", "")
-
-    check_str = "&".join([
-        str(notification_type),
-        str(operation_id),
-        str(amount),
-        str(currency),
-        str(datetime_str),
-        str(sender),
-        str(codepro),
-        notification_secret,
-        str(label),
-    ])
-    import hashlib
-    expected = hashlib.sha1(check_str.encode("utf-8")).hexdigest()
-    
-    debug_str = check_str.replace(notification_secret, "***SECRET***")
-    if expected != sha1_hash:
-        logger.warning(
-            "ЮМани Hash Mismatch!\nСтрока: %s\nОжидаемый: %s\nПрисланный: %s",
-            debug_str, expected, sha1_hash
-        )
-    
-    return expected == sha1_hash
+    if _status_value(order) != PaymentStatus.pending.value:
+        return False
+    kind = str(getattr(order.order_type, "value", order.order_type))
+    if kind == "design":
+        return False
+    return Decimal(order.amount or 0) > 0
 
 
-# ─── Webhook от ЮМани ────────────────────────────────────────────────────────
+def _receipt_phone(raw: Optional[str]) -> Optional[str]:
+    digits = "".join(ch for ch in (raw or "") if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+    elif len(digits) == 10:
+        digits = "7" + digits
+    if len(digits) == 11 and digits.startswith("7"):
+        return digits
+    return None
 
-@router.post("/notify")
-async def yoomoney_notify(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Вебхук ЮМани: сюда приходят уведомления об оплате.
-    """
-    # В FastAPI ОБЯЗАТЕЛЬНО сначала читать body(), иначе form() вызовет Stream consumed
-    raw_body = await request.body()
-    form = await request.form()
-    logger.info(f"Raw YooMoney Form Data: {dict(form)}")
-    
-    # Получаем параметры
-    amount            = form.get("amount")
-    operation_id      = form.get("operation_id")
-    label             = form.get("label")
-    
-    logger.info(f"ЮМани уведомление: op={operation_id} label={label}")
-    
-    if not settings.yoomoney_secret:
-        logger.error("YOOMONEY_SECRET не задан — уведомления не проверяются!")
-        return {"status": "ok"}  # возвращаем 200 чтобы ЮМани не ретраил
 
-    is_valid = verify_yoomoney_signature(dict(form), settings.yoomoney_secret, raw_body)
-
-    if not is_valid:
-        logger.warning(f"Подпись не совпала для {label}. Помечаем платеж как подозрительный.")
-        is_suspicious = True
-    else:
-        is_suspicious = False
-
-    # 2. Ищем заказ по label
-    if not label:
-        logger.warning("ЮМани: пустой label в уведомлении")
-        return {"status": "ok"}
-
-    result = await db.execute(
-        select(Order).options(selectinload(Order.items)).where(Order.payment_label == label)
+def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
+    """Один чек на сумму списания с карты. Выключен, пока YOOKASSA_RECEIPTS не true."""
+    if not settings.yookassa_receipts:
+        return None
+    phone = _receipt_phone(getattr(order, "customer_phone", None)) or _receipt_phone(
+        getattr(order, "customer_contact", None)
     )
-    order = result.scalar_one_or_none()
+    if not phone:
+        logger.warning(
+            "ЮKassa: чеки включены, но у заказа %s нет телефона — платёж без чека",
+            order.id,
+        )
+        return None
 
-    if not order:
-        logger.warning("ЮМани: заказ с label=%s не найден", label)
-        return {"status": "ok"}
+    vat = int(settings.yookassa_vat_code or 1)
+    if vat < 1 or vat > 12:
+        logger.warning("YOOKASSA_VAT_CODE=%s вне 1..12, используем 1 (без НДС)", vat)
+        vat = 1
+    mode = (settings.yookassa_payment_mode or "full_prepayment").strip()
+    if mode not in ("full_prepayment", "full_payment"):
+        logger.warning("YOOKASSA_PAYMENT_MODE=%s заменён на full_prepayment", mode)
+        mode = "full_prepayment"
+    subject = (settings.yookassa_payment_subject or "commodity").strip() or "commodity"
 
-    if order.payment_status == PaymentStatus.paid:
-        logger.info("Заказ %s уже оплачен, игнорируем", order.id)
-        return {"status": "ok"}
+    customer: dict = {"phone": phone}
+    name = (getattr(order, "customer_name", None) or "").strip()
+    if name:
+        customer["full_name"] = name[:256]
 
-    # Проверка суммы (дополнительная безопасность для подозрительных платежей)
+    receipt: dict = {
+        "customer": customer,
+        "items": [
+            {
+                "description": f"Заказ №{order.id}"[:128],
+                "quantity": "1.000",
+                "amount": {"value": _money(amount), "currency": "RUB"},
+                "vat_code": vat,
+                "payment_mode": mode,
+                "payment_subject": subject,
+            }
+        ],
+        "internet": "true",
+    }
+    tz = int(settings.yookassa_receipt_timezone or 0)
+    if 1 <= tz <= 11:
+        receipt["timezone"] = tz
+    tax = settings.yookassa_tax_system_code
+    if tax is not None and 1 <= int(tax) <= 6:
+        receipt["tax_system_code"] = int(tax)
+    return receipt
+
+
+def _amount_matches(remote: dict, order: Order) -> bool:
+    amount = remote.get("amount") or {}
+    if str(amount.get("currency") or "").upper() != "RUB":
+        return False
     try:
-        received_amount = Decimal(amount)
-        if abs(received_amount - order.amount) > Decimal("1.00"):
-            logger.error("ЮМани: Сумма %s не совпадает с суммой заказа %s", received_amount, order.amount)
-            if is_suspicious:
-                return {"status": "ok"} # Игнорируем полностью, если сумма не бьет и подпись не верна
+        got = Decimal(str(amount.get("value"))).quantize(Decimal("0.01"))
     except Exception:
-        pass
+        return False
+    expected = Decimal(order.amount or 0).quantize(Decimal("0.01"))
+    return got == expected
 
-    # 3. Обновляем статусы
-    order.payment_status = PaymentStatus.paid
-    order.status = OrderStatus.in_progress
+
+async def _api(method: str, path: str, json_body: Optional[dict] = None, idempotence: Optional[str] = None) -> httpx.Response:
+    headers = {}
+    if idempotence:
+        headers["Idempotence-Key"] = idempotence
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        return await client.request(
+            method,
+            f"{API_BASE}{path}",
+            json=json_body,
+            headers=headers,
+            auth=httpx.BasicAuth(_shop_id(), _secret()),
+        )
+
+
+async def fetch_payment(payment_id: str) -> Optional[dict]:
+    """Объект платежа из API. None — платежа нет (404). Ошибка сети — PaymentLookupError."""
+    try:
+        resp = await _api("GET", f"/payments/{payment_id}")
+    except (httpx.TimeoutException, httpx.TransportError) as exc:
+        raise PaymentLookupError(str(exc)) from exc
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        logger.error(
+            "ЮKassa GET %s: HTTP %s %s",
+            payment_id, resp.status_code, resp.text[:500],
+        )
+        raise PaymentLookupError(f"HTTP {resp.status_code}")
+    return resp.json()
+
+
+def _idempotence_key(order: Order) -> str:
+    """Один ключ на текущую попытку. Повтор запроса вернёт тот же платёж, а не второй."""
+    label = (order.payment_label or "new").strip() or "new"
+    return f"order-{order.id}-{label}"[:64]
+
+
+async def _request_payment(order: Order) -> Optional[dict]:
+    """Создать платёж и вернуть объект ЮKassa. None — создать не удалось."""
+    if not _configured():
+        return None
+    base = (settings.webapp_url or "").rstrip("/")
+    if not base:
+        logger.error("WEBAPP_URL пуст — ЮKassa не примет return_url")
+        return None
+    amount = Decimal(order.amount or 0).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+
+    payload: dict = {
+        "amount": {"value": _money(amount), "currency": "RUB"},
+        "capture": True,
+        "confirmation": {
+            "type": "redirect",
+            "return_url": f"{base}/payment-success?order_id={order.id}",
+        },
+        "description": f"Заказ №{order.id} в XTEMPLS"[:128],
+        "metadata": {"order_id": str(order.id)},
+    }
+    receipt = _receipt(order, amount)
+    if receipt:
+        payload["receipt"] = receipt
+
+    try:
+        resp = await _api("POST", "/payments", payload, idempotence=_idempotence_key(order))
+    except (httpx.TimeoutException, httpx.TransportError) as exc:
+        logger.error("ЮKassa: нет связи при создании платежа для заказа %s: %s", order.id, exc)
+        return None
+    if resp.status_code not in (200, 201):
+        logger.error(
+            "ЮKassa: платёж для заказа %s не создан, HTTP %s %s",
+            order.id, resp.status_code, resp.text[:800],
+        )
+        return None
+    data = resp.json()
+    if not data.get("id"):
+        logger.error("ЮKassa: в ответе по заказу %s нет id: %s", order.id, str(data)[:500])
+        return None
+    return data
+
+
+async def _store_label(db: AsyncSession, order: Order, payment_id: str) -> bool:
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.payment_status != PaymentStatus.paid)
+        .values(payment_label=payment_id)
+    )
+    if result.rowcount == 0:
+        await db.rollback()
+        return False
+    await db.commit()
+    return True
+
+
+async def mark_order_paid(db: AsyncSession, order: Order, payment_id: str) -> Optional[Order]:
+    """Идемпотентно переводит заказ в оплачен и начисляет бонусы один раз."""
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.payment_status != PaymentStatus.paid)
+        .values(
+            payment_status=PaymentStatus.paid,
+            status=OrderStatus.in_progress,
+            payment_label=payment_id,
+        )
+    )
+    if result.rowcount == 0:
+        await db.rollback()
+        return None
     await db.commit()
 
-    # Кэшбэк держателю реферального промокода (идемпотентно)
+    fresh = await crud.get_order(db, order.id)
+    if not fresh:
+        return None
     try:
-        fresh = await crud.grant_paid_order_bonuses(db, order)
-        if fresh:
-            order = fresh
+        granted = await crud.grant_paid_order_bonuses(db, fresh)
+        if granted:
+            fresh = granted
     except Exception:
-        logger.exception("Не удалось начислить реферальный кэшбэк по заказу %s", order.id)
+        logger.exception("Не удалось начислить бонусы по заказу %s", order.id)
+        fresh = await crud.get_order(db, order.id) or fresh
+    try:
+        await _notify_manager_paid(fresh, payment_id)
+    except Exception:
+        logger.exception("Не удалось уведомить менеджера об оплате заказа %s", order.id)
+    return fresh
 
-    # 4. Уведомляем менеджера
-    await _notify_manager_paid(order, amount, operation_id, is_suspicious)
 
-    return {"status": "ok"}
+async def _order_for_remote(db: AsyncSession, remote: dict) -> Optional[Order]:
+    payment_id = str(remote.get("id") or "")
+    if payment_id:
+        result = await db.execute(
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.payment_label == payment_id)
+        )
+        found = result.scalar_one_or_none()
+        if found:
+            return found
+    raw_id = (remote.get("metadata") or {}).get("order_id")
+    if raw_id is not None and str(raw_id).isdigit():
+        return await crud.get_order(db, int(raw_id))
+    return None
 
 
-async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_suspicious: bool = False):
-    """Уведомление менеджеру о подтверждённой оплате со всеми деталями заказа."""
-    if not settings.manager_chat_id:
+async def _apply_remote(db: AsyncSession, order: Order, remote: dict) -> Optional[str]:
+    """Разобрать уже полученный объект платежа. Вернуть ссылку, если он ещё pending."""
+    status = remote.get("status")
+    payment_id = str(remote.get("id") or "")
+    if status == "succeeded":
+        if _amount_matches(remote, order):
+            await mark_order_paid(db, order, payment_id)
+        else:
+            logger.error(
+                "ЮKassa: сумма платежа %s не совпадает с заказом %s",
+                payment_id, order.id,
+            )
+        return None
+    if status == "pending":
+        return (remote.get("confirmation") or {}).get("confirmation_url")
+    return None
+
+
+async def payment_url_for_order(db: AsyncSession, order: Order) -> Optional[str]:
+    """Ссылка на оплату. Для отменённого платежа создаёт новый."""
+    async with _lock_for(order.id):
+        for _attempt in range(2):
+            current = await crud.get_order(db, order.id)
+            if not current or not _payable(current):
+                return None
+            label = (current.payment_label or "").strip()
+            if _UUID_RE.match(label):
+                try:
+                    remote = await fetch_payment(label)
+                except PaymentLookupError as exc:
+                    logger.warning("ЮKassa: не удалось проверить платёж %s: %s", label, exc)
+                    return None
+                if remote is not None and remote.get("status") != "canceled":
+                    return await _apply_remote(db, current, remote)
+            created = await _request_payment(current)
+            if not created:
+                return None
+            payment_id = str(created.get("id"))
+            status = created.get("status")
+            if status == "succeeded":
+                if _amount_matches(created, current):
+                    await mark_order_paid(db, current, payment_id)
+                else:
+                    logger.error(
+                        "ЮKassa: сумма платежа %s не совпадает с заказом %s",
+                        payment_id, current.id,
+                    )
+                return None
+            if status == "canceled":
+                # Иначе тот же ключ идемпотентности ещё сутки возвращает отмену.
+                await _store_label(db, current, payment_id)
+                continue
+            url = (created.get("confirmation") or {}).get("confirmation_url")
+            if not url:
+                logger.error("ЮKassa: у платежа %s нет ссылки на оплату", payment_id)
+                return None
+            if not await _store_label(db, current, payment_id):
+                return None
+            return url
+        return None
+
+
+async def _notify_manager_paid(order: Order, payment_id: str):
+    if not settings.manager_chat_id or not order:
         return
 
     items_text = "\n".join(
         f"  • {html_escape(item.product_name)}"
         f"{' (' + html_escape(item.size) + ')' if item.size else ''}"
         f" × {item.quantity} — {int(item.product_price * item.quantity):,} ₽"
-        for item in order.items
+        for item in (order.items or [])
     )
 
     phone = getattr(order, "customer_phone", None)
@@ -265,24 +402,13 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_
         f"👤 <b>Покупатель:</b> {html_escape(order.customer_name or '')}\n"
         f"{contact_lines}\n"
     )
-
     text += delivery_block(order)
-
     if order.comment:
         text += f"📝 <b>Комментарий:</b> {html_escape(order.comment)}\n"
-
     if order.items:
         text += f"\n<b>Товары:</b>\n{items_text}\n\n"
-
     text += payment_split_text(order)
-    text += f"\n🔑 <b>Операция ЮМани:</b> <code>{html_escape(str(operation_id))}</code>\n\n"
-    
-    if is_suspicious:
-        text += (
-            "⚠️ <b>ВНИМАНИЕ: Подпись ЮМани не совпала!</b>\n"
-            "ОБЯЗАТЕЛЬНО проверьте кошелек вручную перед выдачей товара!\n\n"
-        )
-        
+    text += f"\n🔑 <b>Платёж ЮKassa:</b> <code>{html_escape(payment_id)}</code>\n\n"
     text += f"Управление заказами: <a href='{settings.webapp_url}/admin/orders.html'>Перейти в админку</a>"
 
     manager_ids = [m.strip() for m in str(settings.manager_chat_id).split(",") if m.strip()]
@@ -293,24 +419,83 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_
             logger.error("Неверный manager_id: %s", m_id)
 
 
-# ─── Статус оплаты заказа ────────────────────────────────────────────────────
+@router.post("/notify")
+async def yookassa_notify(request: Request, db: AsyncSession = Depends(get_db)):
+    """HTTP-уведомление ЮKassa. Тело не доверяем: сверяем платёж через API."""
+    try:
+        body = await request.json()
+    except Exception:
+        logger.warning("ЮKassa: уведомление не JSON")
+        return {"status": "ok"}
+    if not isinstance(body, dict):
+        return {"status": "ok"}
+
+    event = str(body.get("event") or "")
+    obj = body.get("object") if isinstance(body.get("object"), dict) else {}
+    payment_id = str(obj.get("id") or "")
+    logger.info("ЮKassa уведомление: event=%s payment=%s", event, payment_id or "-")
+
+    if not payment_id or not event.startswith("payment."):
+        return {"status": "ok"}
+    if not _configured():
+        logger.error("YOOKASSA_SHOP_ID или YOOKASSA_SECRET_KEY не заданы — уведомление пропущено")
+        return {"status": "ok"}
+
+    try:
+        remote = await fetch_payment(payment_id)
+    except PaymentLookupError as exc:
+        logger.warning("ЮKassa: проверка платежа %s не удалась, просим повтор: %s", payment_id, exc)
+        raise HTTPException(status_code=502, detail="payment lookup failed")
+
+    if not remote:
+        logger.warning("ЮKassa: платёж %s не найден в магазине", payment_id)
+        return {"status": "ok"}
+
+    status = remote.get("status")
+    if status == "canceled":
+        logger.info("ЮKassa: платёж %s отменён, заказ не закрываем", payment_id)
+        return {"status": "ok"}
+    if status != "succeeded":
+        return {"status": "ok"}
+
+    order = await _order_for_remote(db, remote)
+    if not order:
+        logger.warning("ЮKassa: заказ для платежа %s не найден", payment_id)
+        return {"status": "ok"}
+    if _is_paid(order):
+        return {"status": "ok"}
+    if not _amount_matches(remote, order):
+        logger.error(
+            "ЮKassa: сумма %s не совпадает с заказом %s (%s)",
+            (remote.get("amount") or {}).get("value"), order.id, order.amount,
+        )
+        return {"status": "ok"}
+
+    await mark_order_paid(db, order, payment_id)
+    return {"status": "ok"}
+
 
 @router.get("/status/{order_id}")
 async def get_payment_status(order_id: int, db: AsyncSession = Depends(get_db)):
-    """Фронтенд опрашивает статус оплаты после редиректа с ЮМани."""
+    """Статус оплаты. Если платёж отменён — выдаёт новую ссылку ЮKassa."""
     result = await db.execute(
         select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
     )
     order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Заказ не найден")
+
+    url = None
+    try:
+        url = await payment_url_for_order(db, order)
+    except Exception:
+        logger.exception("ЮKassa: не удалось получить ссылку для заказа %s", order_id)
+
+    fresh = await crud.get_order(db, order.id) or order
+    status_value = _status_value(fresh)
     return {
-        "order_id": order.id,
-        "payment_status": order.payment_status,
-        "amount": order.amount,
-        "payment_url": (
-            build_payment_url(order.id, order.amount, order.payment_label)
-            if order.amount and order.payment_label and order.payment_status != PaymentStatus.paid
-            else None
-        ),
+        "order_id": fresh.id,
+        "payment_status": status_value,
+        "amount": fresh.amount,
+        "payment_url": None if status_value == PaymentStatus.paid.value else url,
     }

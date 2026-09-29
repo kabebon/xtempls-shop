@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+from typing import Optional
 import os
 
 
@@ -21,9 +23,15 @@ class Settings(BaseSettings):
     telegram_bot_username: str = ""   # без @, для t.me/<name>?start=REFCODE
     manager_chat_id: str = ""         # Может содержать несколько ID через запятую
     bot_secret: str = "bot-internal-secret"  # Секрет для внутренних вызовов bot→backend
-    # ЮМани QuickPay
-    yoomoney_wallet: str = ""         # номер кошелька (41001...)
-    yoomoney_secret: str = ""         # секрет HTTP-уведомлений
+    # ЮKassa (приём платежей). Секрет только в .env на сервере.
+    yookassa_shop_id: str = ""            # shopId из кабинета ЮKassa
+    yookassa_secret_key: str = ""         # секретный ключ
+    yookassa_receipts: bool = False       # чек 54-ФЗ вместе с платежом
+    yookassa_vat_code: int = 1            # 1 без НДС, 11 = 22%
+    yookassa_tax_system_code: Optional[int] = None  # 1 ОСН … 6 патент, пусто = не передавать
+    yookassa_payment_mode: str = "full_prepayment"
+    yookassa_payment_subject: str = "commodity"
+    yookassa_receipt_timezone: int = 2    # 2 = Москва (UTC+3)
     # ── Личный кабинет: JWT для пользователей ──────────────────────────────────
     user_access_token_expire_minutes: int = 43200  # 30 дней (для "запомнить меня")
     # ── Email (SMTP). Если SMTP_HOST пуст — письма пишутся в лог/файл (заглушка
@@ -34,6 +42,13 @@ class Settings(BaseSettings):
     smtp_password: str = ""           # пароль приложения (не пароль ящика!)
     smtp_from: str = ""               # отображаемый From, например "XTEMPLS <noreply@xtempls.ru>"
     smtp_use_tls: bool = True         # STARTTLS на 587
+
+    @field_validator("yookassa_tax_system_code", mode="before")
+    @classmethod
+    def _empty_tax_system(cls, value):
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
 
     class Config:
         env_file = ".env"

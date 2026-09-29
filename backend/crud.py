@@ -1343,7 +1343,7 @@ async def get_user_orders(db: AsyncSession, user_id: int,
     #   • каталог-заказы, которые оплачены (paid) ИЛИ уже обработаны админом
     #     (status != new — in_progress/done/cancelled).
     # «Брошенные» корзины (pending/failed + status=new) — не показываем и не считаем,
-    # иначе счётчик «заказов» раздувается неоплаченными попытками на ЮМани.
+    # иначе счётчик «заказов» раздувается неоплаченными попытками оплаты.
     visible = or_(
         Order.order_type == OrderType.design,
         Order.payment_status == PaymentStatus.paid,

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Оплата прошла успешно — XTEMPLS</title>
+  <title>Оплата — XTEMPLS</title>
   <link rel="icon" href="/logo-x.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,9 +20,9 @@
   </div>
 </header>
 <main class="success-container">
-  <div class="auth-ico">✓</div>
-  <h1 class="success-heading">Оплата получена</h1>
-  <p class="success-subtitle" id="paymentDetails">Спасибо за заказ. Мы уже начали его собирать.</p>
+  <div class="auth-ico">…</div>
+  <h1 class="success-heading">Проверяем оплату</h1>
+  <p class="success-subtitle" id="paymentDetails">Секунду, сверяем платёж.</p>
   <div class="btn-container">
     <a class="btn btn-primary" href="/">На главную</a>
     <a class="btn btn-secondary" href="/catalog.html">Вернуться в каталог</a>
@@ -35,10 +35,59 @@
 <script>
   window.addEventListener('DOMContentLoaded', () => {
     const orderId = new URLSearchParams(window.location.search).get('order_id');
-    if (orderId) {
-      document.getElementById('paymentDetails').textContent =
-        'Заказ #' + orderId + ' оплачен. Менеджер свяжется с вами в ближайшее время.';
+    const details = document.getElementById('paymentDetails');
+    const heading = document.querySelector('.success-heading');
+    const icon = document.querySelector('.success-container .auth-ico');
+    const buttons = document.querySelector('.btn-container');
+    if (!orderId || !details) return;
+
+    details.textContent = 'Заказ #' + orderId + '. Проверяем оплату…';
+    const paySlot = document.createElement('div');
+    paySlot.className = 'btn-container';
+    paySlot.style.marginBottom = '12px';
+    if (buttons && buttons.parentNode) buttons.parentNode.insertBefore(paySlot, buttons);
+
+    let tries = 0;
+    const delays = [2000, 3000, 5000, 8000, 12000];
+
+    function showPayLink(url) {
+      paySlot.replaceChildren();
+      if (!url) return;
+      const link = document.createElement('a');
+      link.className = 'btn btn-primary';
+      link.href = url;
+      link.textContent = 'Перейти к оплате';
+      paySlot.appendChild(link);
     }
+
+    async function check() {
+      tries += 1;
+      try {
+        const res = await fetch('/api/payments/status/' + encodeURIComponent(orderId));
+        if (!res.ok) throw new Error('status ' + res.status);
+        const data = await res.json();
+        if (data.payment_status === 'paid') {
+          if (icon) icon.textContent = '✓';
+          if (heading) heading.textContent = 'Оплата получена';
+          details.textContent = 'Заказ #' + orderId + ' оплачен. Менеджер свяжется с вами в ближайшее время.';
+          paySlot.replaceChildren();
+          return;
+        }
+        if (icon) icon.textContent = '…';
+        if (heading) heading.textContent = 'Проверяем оплату';
+        if (data.payment_url) {
+          details.textContent = 'Заказ #' + orderId + ' ещё не оплачен. Если списание уже прошло, страница обновится сама. Если нет — вернитесь к оплате, заказ сохранится.';
+          showPayLink(data.payment_url);
+        } else {
+          details.textContent = 'Заказ #' + orderId + ' сохранён. Ссылку на оплату сейчас получить не удалось — обновите страницу через минуту.';
+          paySlot.replaceChildren();
+        }
+      } catch (e) {
+        details.textContent = 'Заказ #' + orderId + '. Не удалось проверить оплату, обновите страницу через минуту.';
+      }
+      if (tries <= delays.length) setTimeout(check, delays[tries - 1]);
+    }
+    check();
   });
 </script>
 </body>

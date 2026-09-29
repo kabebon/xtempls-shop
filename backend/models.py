@@ -204,7 +204,7 @@ class BonusTransaction(Base):
 
 class PaymentStatus(str, enum.Enum):
     pending = "pending"    # ждём оплаты
-    paid = "paid"          # ЮМани подтвердил
+    paid = "paid"          # ЮKassa подтвердила оплату
     failed = "failed"      # отменён / не оплачен
 
 
@@ -233,9 +233,9 @@ class Order(Base):
     # ─────────────────────────────────────────────────────────────────────────
     status = Column(SAEnum(OrderStatus), default=OrderStatus.new, nullable=False)
     order_type = Column(SAEnum(OrderType), default=OrderType.catalog, nullable=False)
-    # ── ЮМани оплата ─────────────────────────────────────────────────────────
+    # ── Оплата ЮKassa ────────────────────────────────────────────────────────
     payment_status = Column(SAEnum(PaymentStatus), default=PaymentStatus.pending, nullable=False)
-    payment_label = Column(String(100), nullable=True, unique=True, index=True)  # наш ID в ЮМани
+    payment_label = Column(String(100), nullable=True, unique=True, index=True)  # id платежа ЮKassa
     amount = Column(Numeric(10, 2), nullable=True)          # итоговая сумма заказа
     bonus_spent = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
     referral_cashback_paid = Column(Boolean, default=False, nullable=False, server_default="0")

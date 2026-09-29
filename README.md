@@ -219,3 +219,19 @@ FastAPI автоматически генерирует документацию
 | `ADMIN_DEFAULT_LOGIN` | Логин первого администратора |
 | `ADMIN_DEFAULT_PASSWORD` | Пароль первого администратора |
 | `ALLOWED_ORIGINS` | CORS origins (через запятую) |
+| `YOOKASSA_SHOP_ID` | shopId магазина ЮKassa |
+| `YOOKASSA_SECRET_KEY` | Секретный ключ ЮKassa |
+| `YOOKASSA_RECEIPTS` | `true` — отправлять чек 54-ФЗ. По умолчанию `false` |
+| `YOOKASSA_VAT_CODE` | НДС чека: 1 без НДС, 11 = 22% |
+| `YOOKASSA_TAX_SYSTEM_CODE` | Необязательно: 1 ОСН, 2 УСН доходы, 3 УСН доходы−расходы, 6 патент |
+| `YOOKASSA_PAYMENT_MODE` | `full_prepayment` (до отгрузки) или `full_payment` |
+| `YOOKASSA_PAYMENT_SUBJECT` | Предмет расчёта, по умолчанию `commodity` |
+| `YOOKASSA_RECEIPT_TIMEZONE` | Часовой пояс чека, `2` = Москва |
+
+### HTTP-уведомления ЮKassa
+
+В кабинете: Интеграция → HTTP-уведомления. URL берётся из `WEBAPP_URL`:
+
+`https://xtempls.ru/api/payments/notify`
+
+Включите события `payment.succeeded` и `payment.canceled`. Оплаченным заказ становится только после того, как API ЮKassa само подтвердит платёж.

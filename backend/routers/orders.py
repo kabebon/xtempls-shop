@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update
 from typing import Optional
 import json
 import logging
@@ -8,11 +7,11 @@ from decimal import Decimal
 
 from database import get_db, settings
 import crud
-from models import OrderType, Order
+from models import OrderType
 from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest, PromoValidateResponse
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
-from routers.payments import build_payment_url
+from routers.payments import payment_url_for_order
 from auth import get_optional_user, User
 
 logger = logging.getLogger(__name__)
@@ -124,25 +123,21 @@ async def create_order(
         # Product(s) not found / inactive
         raise HTTPException(status_code=400, detail=str(e))
 
-    # ── ЮМани: назначаем label. Сумма уже посчитана в crud.create_order ────
+    # ── ЮKassa: сумма уже посчитана в crud.create_order (остаток рублями) ──
     payment_url: Optional[str] = None
     is_catalog = (data.order_type == OrderType.catalog)
     already_paid = order.payment_status == "paid" or (
         getattr(order.payment_status, "value", order.payment_status) == "paid"
     )
-    if is_catalog and settings.yoomoney_wallet and not already_paid and Decimal(order.amount or 0) > 0:
-        label = f"order_{order.id}"
-        await db.execute(
-            update(Order)
-            .where(Order.id == order.id)
-            .values(payment_label=label)
-        )
-        await db.commit()
-        await db.refresh(order)
-        payment_url = build_payment_url(order.id, order.amount, label)
+    if is_catalog and not already_paid and Decimal(order.amount or 0) > 0:
+        try:
+            payment_url = await payment_url_for_order(db, order)
+        except Exception:
+            logger.exception("ЮKassa: не удалось создать платёж для заказа %s", order.id)
+            payment_url = None
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Менеджеру — если ЮМани не нужен (дизайн, 100% бонусами, или кошелёк не задан)
+    # Менеджеру — если оплата картой не нужна или платёж не создался
     if not payment_url:
         try:
             await notify_manager_new_order(order)

@@ -360,7 +360,7 @@ class OrderOut(BaseModel):
     order_type: str
     tg_user_chat_id: Optional[int] = None
     items: List[OrderItemOut] = []
-    # ЮМани поля
+    # Оплата ЮKassa
     payment_status: str = "pending"
     payment_label: Optional[str] = None
     amount: Optional[Decimal] = None
