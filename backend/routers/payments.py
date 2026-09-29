@@ -12,6 +12,8 @@
 import asyncio
 import logging
 import re
+import uuid
+from contextvars import ContextVar
 from decimal import Decimal
 from html import escape as html_escape
 from typing import Optional
@@ -35,10 +37,34 @@ _UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
 _create_locks: dict[int, asyncio.Lock] = {}
+_payment_error: ContextVar[str] = ContextVar("yookassa_payment_error", default="")
 
 
 class PaymentLookupError(Exception):
     """ЮKassa временно не ответила. Уведомление нужно повторить."""
+
+
+def last_payment_error() -> str:
+    return _payment_error.get()
+
+
+def _set_payment_error(message: str) -> None:
+    _payment_error.set((message or "").strip()[:300])
+
+
+def _yookassa_error_text(resp: httpx.Response) -> str:
+    try:
+        body = resp.json()
+    except Exception:
+        body = None
+    if isinstance(body, dict):
+        desc = str(body.get("description") or "").strip()
+        code = str(body.get("code") or "").strip()
+        if desc and code:
+            return f"{desc} ({code})"[:300]
+        if desc or code:
+            return (desc or code)[:300]
+    return "ЮKassa отклонила создание платежа"
 
 
 def notification_url() -> str:
@@ -165,15 +191,12 @@ def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
         logger.warning("YOOKASSA_PAYMENT_MODE=%s заменён на full_prepayment", mode)
         mode = "full_prepayment"
     subject = (settings.yookassa_payment_subject or "commodity").strip() or "commodity"
-    name = (getattr(order, "customer_name", None) or "").strip()
-    if name:
-        customer["full_name"] = name[:256]
     receipt: dict = {
         "customer": customer,
         "items": [
             {
                 "description": description,
-                "quantity": "1.000",
+                "quantity": 1,
                 "amount": money,
                 "vat_code": vat,
                 "payment_mode": mode,
@@ -234,18 +257,28 @@ async def fetch_payment(payment_id: str) -> Optional[dict]:
     return resp.json()
 
 
-def _idempotence_key(order: Order) -> str:
-    """Один ключ на текущую попытку. Повтор запроса вернёт тот же платёж, а не второй."""
-    label = (order.payment_label or "new").strip() or "new"
-    return f"order-{order.id}-{label}"[:64]
+async def _post_payment(order: Order, payload: dict, idempotence: str) -> Optional[httpx.Response]:
+    """Один повтор при обрыве связи с тем же ключом, чтобы не создать второй платёж."""
+    try:
+        return await _api("POST", "/payments", payload, idempotence=idempotence)
+    except (httpx.TimeoutException, httpx.TransportError) as exc:
+        logger.warning("ЮKassa: повтор создания платежа для заказа %s после обрыва: %s", order.id, exc)
+        try:
+            return await _api("POST", "/payments", payload, idempotence=idempotence)
+        except (httpx.TimeoutException, httpx.TransportError) as again:
+            _set_payment_error("Нет связи с ЮKassa. Нажмите «Перейти к оплате» ещё раз.")
+            logger.error("ЮKassa: нет связи при создании платежа для заказа %s: %s", order.id, again)
+            return None
 
 
 async def _request_payment(order: Order) -> Optional[dict]:
     """Создать платёж и вернуть объект ЮKassa. None — создать не удалось."""
     if not _configured():
+        _set_payment_error("Оплата не настроена: в env нет shopId или секретного ключа.")
         return None
     base = (settings.webapp_url or "").rstrip("/")
     if not base:
+        _set_payment_error("Не задан WEBAPP_URL, ЮKassa не примет адрес возврата.")
         logger.error("WEBAPP_URL пуст — ЮKassa не примет return_url")
         return None
     amount = Decimal(order.amount or 0).quantize(Decimal("0.01"))
@@ -263,15 +296,20 @@ async def _request_payment(order: Order) -> Optional[dict]:
         "metadata": {"order_id": str(order.id)},
     }
     receipt = _receipt(order, amount)
+    if settings.yookassa_receipts and receipt is None:
+        _set_payment_error("Для чека нужен телефон в формате +7. Без него ЮKassa не откроет оплату.")
+        return None
     if receipt:
         payload["receipt"] = receipt
 
-    try:
-        resp = await _api("POST", "/payments", payload, idempotence=_idempotence_key(order))
-    except (httpx.TimeoutException, httpx.TransportError) as exc:
-        logger.error("ЮKassa: нет связи при создании платежа для заказа %s: %s", order.id, exc)
+    # Новый ключ на каждую попытку. Неудачный запрос ЮKassa помнит сутки,
+    # и повтор с тем же ключом снова вернёт старый отказ.
+    resp = await _post_payment(order, payload, str(uuid.uuid4()))
+    if resp is None:
         return None
     if resp.status_code not in (200, 201):
+        message = _yookassa_error_text(resp)
+        _set_payment_error(message)
         logger.error(
             "ЮKassa: платёж для заказа %s не создан, HTTP %s %s",
             order.id, resp.status_code, resp.text[:800],
@@ -279,8 +317,14 @@ async def _request_payment(order: Order) -> Optional[dict]:
         return None
     data = resp.json()
     if not data.get("id"):
+        _set_payment_error("ЮKassa не вернула номер платежа.")
         logger.error("ЮKassa: в ответе по заказу %s нет id: %s", order.id, str(data)[:500])
         return None
+    if data.get("status") == "canceled":
+        reason = ((data.get("cancellation_details") or {}).get("reason") or "").strip()
+        _set_payment_error(
+            f"ЮKassa отменила платёж{': ' + reason if reason else ''}."
+        )
     return data
 
 
@@ -367,6 +411,7 @@ async def _apply_remote(db: AsyncSession, order: Order, remote: dict) -> Optiona
 
 async def payment_url_for_order(db: AsyncSession, order: Order) -> Optional[str]:
     """Ссылка на оплату. Для отменённого платежа создаёт новый."""
+    _payment_error.set("")
     async with _lock_for(order.id):
         for _attempt in range(2):
             current = await crud.get_order(db, order.id)
@@ -396,15 +441,17 @@ async def payment_url_for_order(db: AsyncSession, order: Order) -> Optional[str]
                     )
                 return None
             if status == "canceled":
-                # Иначе тот же ключ идемпотентности ещё сутки возвращает отмену.
                 await _store_label(db, current, payment_id)
                 continue
             url = (created.get("confirmation") or {}).get("confirmation_url")
             if not url:
+                _set_payment_error("ЮKassa не прислала ссылку на оплату.")
                 logger.error("ЮKassa: у платежа %s нет ссылки на оплату", payment_id)
                 return None
             if not await _store_label(db, current, payment_id):
+                _set_payment_error("Платёж создан, но заказ не удалось с ним связать.")
                 return None
+            _payment_error.set("")
             return url
         return None
 
@@ -534,4 +581,5 @@ async def get_payment_status(order_id: int, db: AsyncSession = Depends(get_db)):
         "payment_status": status_value,
         "amount": fresh.amount,
         "payment_url": None if status_value == PaymentStatus.paid.value else url,
+        "payment_error": None if url or status_value == PaymentStatus.paid.value else (last_payment_error() or None),
     }

@@ -11,7 +11,7 @@ from models import OrderType
 from schemas import OrderCreate, OrderOut, TgUserRegister, PromoValidateRequest, PromoValidateResponse
 from notifications import notify_manager_new_order
 from telegram_auth import validate_init_data
-from routers.payments import payment_url_for_order
+from routers.payments import last_payment_error, payment_url_for_order
 from auth import get_optional_user, User
 
 logger = logging.getLogger(__name__)
@@ -147,6 +147,8 @@ async def create_order(
     # Собираем ответ вручную чтобы добавить payment_url (не хранится в модели)
     out = OrderOut.model_validate(order)
     out.payment_url = payment_url
+    if not payment_url and not already_paid and Decimal(order.amount or 0) > 0 and is_catalog:
+        out.payment_error = last_payment_error() or "Не удалось открыть страницу оплаты ЮKassa."
     return out
 
 

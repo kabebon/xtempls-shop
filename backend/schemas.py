@@ -366,6 +366,7 @@ class OrderOut(BaseModel):
     amount: Optional[Decimal] = None
     bonus_spent: Decimal = Decimal("0")
     payment_url: Optional[str] = None  # генерируется на лету, не хранится в БД
+    payment_error: Optional[str] = None  # почему ссылка на оплату не собралась
     # Soft-delete (для админки — корзина)
     is_deleted: bool = False
     deleted_at: Optional[datetime] = None

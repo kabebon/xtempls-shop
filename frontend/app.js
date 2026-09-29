@@ -732,38 +732,58 @@ window.submitOrder = async function(e) {
     window._appliedPromo = null;
     updateCartBadge();
 
-    if (orderData.payment_url) {
-      // Сразу редирект на оплату
-      window.location.href = orderData.payment_url;
+    const bonusPaid = Number(orderData.bonus_spent || 0);
+    const rublesDue = Number(orderData.amount || 0);
+    let paymentUrl = orderData.payment_url || '';
+    if (!paymentUrl && rublesDue > 0 && orderData.order_type !== 'design') {
+      try {
+        const statusRes = await fetch(API + '/payments/status/' + orderData.id);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          paymentUrl = statusData.payment_url || '';
+          if (!orderData.payment_error && statusData.payment_error) {
+            orderData.payment_error = statusData.payment_error;
+          }
+        }
+      } catch (e) {}
+    }
+    if (paymentUrl) {
+      window.location.href = paymentUrl;
       return;
     }
 
-    // Если нет payment_url (например, дизайн), показываем success screen
+    // Дизайн и полная оплата бонусами остаются на экране успеха.
+    // Если рубли к оплате есть, а ссылки нет — это сбой ЮKassa, не «заказ без оплаты».
     const contactDisplay = phone + (telegram ? ' · @' + telegram : '');
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
     const checkoutFooter = document.getElementById('checkoutModal')?.querySelector('.cart-footer');
-    const bonusPaid = Number(orderData.bonus_spent || 0);
-    const rublesDue = Number(orderData.amount || 0);
     const paidNote = rublesDue <= 0
       ? 'Заказ закрыт бонусами, доплачивать рублями не нужно.'
-      : 'Менеджер свяжется с вами по указанному контакту.';
+      : (orderData.order_type === 'design'
+        ? 'Менеджер свяжется с вами по указанному контакту.'
+        : (orderData.payment_error || 'Страница оплаты не открылась. Нажмите «Перейти к оплате».'));
+    const payFailed = rublesDue > 0 && orderData.order_type !== 'design';
     if (checkoutBody) {
       checkoutBody.innerHTML = `
         <div class="order-success">
-          <div class="auth-ico">✓</div>
-          <div class="success-title">Заказ оформлен</div>
+          <div class="auth-ico">${payFailed ? '!' : '✓'}</div>
+          <div class="success-title">${payFailed ? 'Оплата не открылась' : 'Заказ оформлен'}</div>
           <p class="success-text">${name}, заказ №${orderData.id} принят.<br>Контакт: <strong>${contactDisplay}</strong></p>
           <div class="order-pay-split">
             <div><span>Бонусами</span><b>${fmt(bonusPaid)}</b></div>
             <div><span>Рублями</span><b>${fmt(rublesDue)}</b></div>
           </div>
-          <p class="success-text">${paidNote}</p>
+          <p class="success-text" id="checkoutPayNote"></p>
           <div class="success-actions">
-            <button type="button" class="btn btn-primary" onclick="closeSuccessAndGo('close')">Закрыть</button>
+            ${rublesDue > 0 && orderData.order_type !== 'design'
+              ? `<button type="button" class="btn btn-primary" onclick="retryYooPayment(${Number(orderData.id)}, this)">Перейти к оплате</button>`
+              : `<button type="button" class="btn btn-primary" onclick="closeSuccessAndGo('close')">Закрыть</button>`}
             <button type="button" class="btn btn-secondary" onclick="closeSuccessAndGo('home')">На главную</button>
           </div>
         </div>
       `;
+      const noteEl = document.getElementById('checkoutPayNote');
+      if (noteEl) noteEl.textContent = paidNote;
     }
     if (checkoutFooter) checkoutFooter.style.display = 'none';
 
@@ -773,6 +793,25 @@ window.submitOrder = async function(e) {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Отправить заказ'; }
   }
+};
+
+window.retryYooPayment = async function(orderId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Открываем оплату...'; }
+  try {
+    const res = await fetch(API + '/payments/status/' + encodeURIComponent(orderId));
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.payment_url) {
+      window.location.href = data.payment_url;
+      return;
+    }
+    const message = data.payment_error || 'Страница оплаты всё ещё недоступна.';
+    const note = document.getElementById('checkoutPayNote');
+    if (note) note.textContent = message;
+    else showToast(message);
+  } catch (e) {
+    showToast('Ошибка соединения');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Перейти к оплате'; }
 };
 
 // Close the success screen either to the underlying page or to the home page.
