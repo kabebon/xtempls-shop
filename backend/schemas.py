@@ -23,6 +23,14 @@ def _normalize_phone(v: Optional[str]) -> Optional[str]:
     return v
 
 
+DELIVERY_SERVICES = {
+    "5post": "5Post",
+    "yandex": "Яндекс",
+    "ozon": "Ozon",
+    "cdek": "СДЭК",
+}
+
+
 def _normalize_telegram(v: Optional[str]) -> Optional[str]:
     if v is None:
         return None
@@ -282,6 +290,7 @@ class OrderCreate(BaseModel):
     # Legacy: для обратной совместимости со старыми клиентами/дизайн-формой
     customer_contact: Optional[str] = Field(None, max_length=200)
     delivery_address: Optional[str] = Field(None, max_length=1000)
+    delivery_service: Optional[str] = Field(None, max_length=32)
     comment: Optional[str] = Field(None, max_length=2000)
     items: List[OrderItemCreate] = Field(default_factory=list)
     tg_user_chat_id: Optional[int] = None  # ignored from client; set from verified initData
@@ -304,6 +313,18 @@ class OrderCreate(BaseModel):
     @classmethod
     def _validate_telegram(cls, v):
         return _normalize_telegram(v)
+
+    @field_validator("delivery_service")
+    @classmethod
+    def _validate_delivery_service(cls, v):
+        if v is None:
+            return None
+        key = str(v).strip().lower()
+        if not key:
+            return None
+        if key not in DELIVERY_SERVICES:
+            raise ValueError("Выберите службу доставки: 5Post, Яндекс, Ozon или СДЭК")
+        return key
 
     @model_validator(mode="after")
     def _at_least_one_contact(self):
@@ -332,6 +353,7 @@ class OrderOut(BaseModel):
     customer_telegram: Optional[str] = None
     customer_contact: Optional[str] = None  # legacy / обратная совместимость
     delivery_address: Optional[str] = None
+    delivery_service: Optional[str] = None
     comment: Optional[str] = None
     admin_note: Optional[str] = None
     status: str
@@ -395,6 +417,7 @@ class OrderAdminUpdate(BaseModel):
     customer_phone: Optional[str] = Field(None, max_length=30)
     customer_telegram: Optional[str] = Field(None, max_length=100)
     delivery_address: Optional[str] = Field(None, max_length=2000)
+    delivery_service: Optional[str] = Field(None, max_length=32)
     comment: Optional[str] = Field(None, max_length=5000)
     amount: Optional[Decimal] = Field(None, ge=0)
     status: Optional[str] = None  # new | in_progress | done | cancelled
@@ -481,6 +504,8 @@ class ReferralSettings(BaseModel):
     buyer_discount_enabled: bool = True
     discount_percent: Decimal = Field(..., ge=0, le=100)
     max_bonus_spend_percent: Decimal = Field(..., ge=0, le=100)
+    own_cashback_enabled: bool = True
+    own_cashback_percent: Decimal = Field(Decimal("5"), ge=0, le=100)
     min_order_amount: Decimal = Field(Decimal("0"), ge=0)
     allow_self_promo: bool = False
     cashback_base: str = "paid"
@@ -501,6 +526,8 @@ class ReferralSettingsUpdate(BaseModel):
     buyer_discount_enabled: Optional[bool] = None
     discount_percent: Optional[Decimal] = Field(None, ge=0, le=100)
     max_bonus_spend_percent: Optional[Decimal] = Field(None, ge=0, le=100)
+    own_cashback_enabled: Optional[bool] = None
+    own_cashback_percent: Optional[Decimal] = Field(None, ge=0, le=100)
     min_order_amount: Optional[Decimal] = Field(None, ge=0)
     allow_self_promo: Optional[bool] = None
     cashback_base: Optional[str] = None
@@ -744,6 +771,11 @@ class ReferralOut(BaseModel):
     welcome_bonus: Decimal = Decimal("0")
     purchase_cashback_enabled: bool = True
     buyer_discount_enabled: bool = True
+    first_purchase_bonus_enabled: bool = True
+    first_purchase_bonus: Decimal = Decimal("0")
+    max_bonus_spend_percent: Decimal = Decimal("99")
+    own_cashback_enabled: bool = False
+    own_cashback_percent: Decimal = Decimal("0")
     min_order_amount: Decimal = Decimal("0")
 
 
@@ -785,6 +817,9 @@ class BonusTransactionOut(BaseModel):
 class BonusOut(BaseModel):
     balance: Decimal
     transactions: List[BonusTransactionOut]
+    max_bonus_spend_percent: Decimal = Decimal("99")
+    own_cashback_enabled: bool = False
+    own_cashback_percent: Decimal = Decimal("0")
 
 
 # ─── Заказы пользователя ─────────────────────────────────────────────────────

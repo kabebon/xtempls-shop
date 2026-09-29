@@ -1,7 +1,7 @@
 import math
 import hashlib
 from datetime import datetime, timezone, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, String, or_
@@ -18,7 +18,7 @@ from schemas import (
     CategoryCreate, CategoryUpdate,
     ProductCreate, ProductUpdate,
     ProductListOut, StockStatus,
-    OrderCreate,
+    OrderCreate, DELIVERY_SERVICES,
 )
 from auth import get_password_hash
 from database import settings
@@ -499,6 +499,7 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
         customer_telegram=getattr(data, "customer_telegram", None),
         customer_contact=getattr(data, "customer_contact", None),
         delivery_address=getattr(data, "delivery_address", None),
+        delivery_service=getattr(data, "delivery_service", None),
         comment=data.comment,
         order_type=getattr(data, "order_type", None),
         user_id=getattr(data, "user_id", None),
@@ -560,7 +561,13 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
             raise ValueError("Чтобы списать бонусы, войдите в личный кабинет")
         ref_settings = await get_referral_settings(db)
         max_pct = Decimal(ref_settings["max_bonus_spend_percent"])
-        max_by_percent = (subtotal * max_pct / Decimal(100)).quantize(Decimal("0.01"))
+        if max_pct < 0:
+            max_pct = Decimal("0")
+        if max_pct > 100:
+            max_pct = Decimal("100")
+        max_by_percent = (subtotal * max_pct / Decimal(100)).quantize(
+            Decimal("0.01"), rounding=ROUND_DOWN
+        )
         buyer = (
             await db.execute(select(User).where(User.id == buyer_id).with_for_update())
         ).scalar_one_or_none()
@@ -588,8 +595,7 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
     await db.commit()
     order = await get_order(db, order.id)
     if order and order.payment_status == PaymentStatus.paid:
-        await grant_referral_purchase_cashback(db, order)
-        order = await get_order(db, order.id)
+        order = await grant_paid_order_bonuses(db, order)
     return order
 
 
@@ -675,9 +681,14 @@ async def update_order_admin(db: AsyncSession, order_id: int, data) -> Optional[
             raise ValueError(f"Неверный payment_status: {payload['payment_status']}")
 
     # Тримим строки
-    for k in ("customer_name", "customer_phone", "customer_telegram"):
+    for k in ("customer_name", "customer_phone", "customer_telegram", "delivery_service"):
         if k in payload and payload[k]:
             payload[k] = str(payload[k]).strip()
+    if "delivery_service" in payload:
+        service = (payload.get("delivery_service") or "").strip().lower()
+        payload["delivery_service"] = service or None
+        if service and service not in DELIVERY_SERVICES:
+            raise ValueError("Выберите службу доставки: 5Post, Яндекс, Ozon или СДЭК")
 
     order = await get_order(db, order_id)
     if not order:
@@ -699,8 +710,7 @@ async def update_order_admin(db: AsyncSession, order_id: int, data) -> Optional[
         await reverse_referral_cashback(db, order, commit=True)
         order = await get_order(db, order_id)
     if new_pay == PaymentStatus.paid and prev_pay != PaymentStatus.paid:
-        await grant_referral_purchase_cashback(db, order)
-        order = await get_order(db, order_id)
+        order = await grant_paid_order_bonuses(db, order)
     return order
 
 
@@ -1259,6 +1269,8 @@ async def get_referral_stats(db: AsyncSession, user_id: int) -> dict:
         "first_purchase_bonus_enabled": ref_settings.get("first_purchase_bonus_enabled", True),
         "first_purchase_bonus": ref_settings.get("first_purchase_bonus", 0),
         "max_bonus_spend_percent": ref_settings.get("max_bonus_spend_percent", 99),
+        "own_cashback_enabled": ref_settings.get("own_cashback_enabled", False),
+        "own_cashback_percent": ref_settings.get("own_cashback_percent", 0),
         "discount_percent": ref_settings["discount_percent"],
         "program_enabled": ref_settings.get("program_enabled", True),
         "signup_bonus_enabled": ref_settings.get("signup_bonus_enabled", True),
@@ -1414,6 +1426,8 @@ REFERRAL_SETTING_DEFAULTS = {
     "buyer_discount_enabled": True,                # скидка покупателю по реф. промокоду
     "discount_percent": Decimal("5"),              # %
     "max_bonus_spend_percent": Decimal("99"),      # сколько % заказа можно закрыть бонусами
+    "own_cashback_enabled": True,                  # кэшбэк самому покупателю за его заказ
+    "own_cashback_percent": Decimal("5"),
     "min_order_amount": Decimal("0"),              # мин. сумма оплаты для кэшбэка
     "allow_self_promo": False,                     # свой код на свои покупки
     "cashback_base": "paid",                       # paid | subtotal
@@ -1424,10 +1438,12 @@ _BOOL_SETTINGS = {
     "program_enabled", "signup_bonus_enabled", "invitee_bonus_enabled",
     "welcome_bonus_enabled", "first_purchase_bonus_enabled",
     "purchase_cashback_enabled", "buyer_discount_enabled", "allow_self_promo",
+    "own_cashback_enabled",
 }
 _STR_SETTINGS = {"cashback_base"}
 _PERCENT_SETTINGS = {
     "purchase_cashback_percent", "discount_percent", "max_bonus_spend_percent",
+    "own_cashback_percent",
 }
 
 
@@ -1627,6 +1643,50 @@ async def grant_referral_purchase_cashback(db: AsyncSession, order: Order) -> No
             commit=False,
         )
     await db.commit()
+
+
+async def grant_own_purchase_cashback(db: AsyncSession, order: Order) -> None:
+    """Баллы самому покупателю за его оплаченный заказ. Не путать с рефералкой."""
+    if not order or order.own_cashback_paid:
+        return
+    if order.payment_status != PaymentStatus.paid or not order.user_id:
+        return
+    kind = getattr(order.order_type, "value", order.order_type)
+    if str(kind) == OrderType.design.value:
+        order.own_cashback_paid = True
+        await db.commit()
+        return
+    ref_settings = await get_referral_settings(db)
+    if not ref_settings.get("own_cashback_enabled"):
+        order.own_cashback_paid = True
+        await db.commit()
+        return
+    percent = Decimal(ref_settings.get("own_cashback_percent") or 0)
+    base = sum(
+        (Decimal(i.product_price) * int(i.quantity or 1) for i in (order.items or [])),
+        Decimal("0"),
+    )
+    cashback = (base * percent / Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    order.own_cashback_paid = True
+    if cashback > 0:
+        await add_bonus_transaction(
+            db, order.user_id, cashback,
+            reason=f"Кэшбэк {percent}% за покупку, заказ #{order.id}",
+            tx_type=BonusTxType.accrual,
+            order_id=order.id,
+            commit=False,
+        )
+    await db.commit()
+
+
+async def grant_paid_order_bonuses(db: AsyncSession, order: Optional[Order]) -> Optional[Order]:
+    """Реферальный кэшбэк пригласившему и кэшбэк самому покупателю."""
+    if not order:
+        return order
+    await grant_referral_purchase_cashback(db, order)
+    order = await get_order(db, order.id)
+    await grant_own_purchase_cashback(db, order)
+    return await get_order(db, order.id)
 
 
 async def refund_order_bonuses(db: AsyncSession, order: Order, commit: bool = True) -> None:
@@ -1831,6 +1891,28 @@ async def _get_app_setting_raw(db: AsyncSession, key: str):
     result = await db.execute(select(AppSetting).where(AppSetting.key == key))
     row = result.scalar_one_or_none()
     return None if row is None else row.value
+
+
+async def get_account_copy(db: AsyncSession) -> dict:
+    from account_copy_defaults import ACCOUNT_COPY_DEFAULTS
+    stored = await _get_app_setting_raw(db, "account_copy")
+    data = dict(ACCOUNT_COPY_DEFAULTS)
+    if isinstance(stored, dict):
+        for key in ACCOUNT_COPY_DEFAULTS:
+            if isinstance(stored.get(key), str):
+                data[key] = stored[key]
+    return data
+
+
+async def save_account_copy(db: AsyncSession, patch: dict) -> dict:
+    data = await get_account_copy(db)
+    if isinstance(patch, dict):
+        for key in list(data):
+            if isinstance(patch.get(key), str):
+                data[key] = patch[key].strip()
+    await _set_app_setting_raw(db, "account_copy", data)
+    await db.commit()
+    return data
 
 
 async def get_homepage(db: AsyncSession) -> dict:

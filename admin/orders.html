@@ -77,6 +77,7 @@
       </svg>
       Тексты сайта
     </a>
+    <a class="nav-item" href="cabinet.html">Личный кабинет</a>
     <a class="nav-item" href="analytics.html">
       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>
@@ -403,11 +404,20 @@
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Комментарий</div>
           <div style="color:var(--text-sec);font-size:13px;">${o.comment}</div>
         </div>` : ''}
+        ${o.delivery_service ? `
+        <div style="grid-column:1/-1;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Служба доставки</div>
+          <div style="color:var(--text-sec);font-size:13px;">${({ '5post': '5Post', yandex: 'Яндекс', ozon: 'Ozon', cdek: 'СДЭК' })[o.delivery_service] || o.delivery_service}</div>
+        </div>` : ''}
         ${o.delivery_address ? `
         <div style="grid-column:1/-1;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Адрес доставки</div>
           <div style="color:var(--text-sec);font-size:13px;">${o.delivery_address}</div>
         </div>` : ''}
+        <div style="grid-column:1/-1;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px;">Оплата заказа</div>
+          <div style="color:var(--text-sec);font-size:13px;">Бонусами ${fmt(Number(o.bonus_spent || 0))} · рублями ${fmt(Number(o.amount || 0))}</div>
+        </div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:16px;">
         <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Позиции</div>
@@ -472,6 +482,13 @@
             ${['pending','paid','failed'].map(s => `<option value="${s}" ${o.payment_status===s?'selected':''}>${(PAYMENT_STATUS_MAP[s]||[,''])[1]||s}</option>`).join('')}
           </select>
         </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Служба доставки</label>
+          <select class="form-input" id="ed_service" style="width:100%;margin-top:4px;">
+            <option value="">—</option>
+            ${[['5post','5Post'],['yandex','Яндекс'],['ozon','Ozon'],['cdek','СДЭК']].map(([v,l]) => `<option value="${v}" ${o.delivery_service===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
         <div style="grid-column:1/-1;">
           <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Адрес доставки</label>
           <input class="form-input" id="ed_address" value="${esc(o.delivery_address || '')}" style="width:100%;margin-top:4px;">
@@ -505,6 +522,7 @@
       customer_phone: document.getElementById('ed_phone').value.trim() || undefined,
       customer_telegram: document.getElementById('ed_tg').value.trim() || undefined,
       delivery_address: document.getElementById('ed_address').value.trim() || undefined,
+      delivery_service: document.getElementById('ed_service').value || null,
       comment: document.getElementById('ed_comment').value.trim() || undefined,
       admin_note: document.getElementById('ed_note').value.trim() || undefined,
       amount: num(document.getElementById('ed_amount').value),

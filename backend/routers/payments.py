@@ -20,7 +20,7 @@ from sqlalchemy.orm import selectinload
 from database import get_db, settings
 import crud
 from models import Order, PaymentStatus, OrderStatus
-from notifications import send_message
+from notifications import send_message, payment_split_text, delivery_block
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -223,7 +223,9 @@ async def yoomoney_notify(
 
     # Кэшбэк держателю реферального промокода (идемпотентно)
     try:
-        await crud.grant_referral_purchase_cashback(db, order)
+        fresh = await crud.grant_paid_order_bonuses(db, order)
+        if fresh:
+            order = fresh
     except Exception:
         logger.exception("Не удалось начислить реферальный кэшбэк по заказу %s", order.id)
 
@@ -264,9 +266,7 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_
         f"{contact_lines}\n"
     )
 
-    delivery_address = getattr(order, "delivery_address", None)
-    if delivery_address:
-        text += f"📦 <b>Адрес доставки:</b> {html_escape(delivery_address)}\n"
+    text += delivery_block(order)
 
     if order.comment:
         text += f"📝 <b>Комментарий:</b> {html_escape(order.comment)}\n"
@@ -274,8 +274,8 @@ async def _notify_manager_paid(order: Order, amount: str, operation_id: str, is_
     if order.items:
         text += f"\n<b>Товары:</b>\n{items_text}\n\n"
 
-    text += f"💰 <b>Сумма оплаты:</b> {amount} ₽\n"
-    text += f"🔑 <b>Операция ЮМани:</b> <code>{operation_id}</code>\n\n"
+    text += payment_split_text(order)
+    text += f"\n🔑 <b>Операция ЮМани:</b> <code>{html_escape(str(operation_id))}</code>\n\n"
     
     if is_suspicious:
         text += (

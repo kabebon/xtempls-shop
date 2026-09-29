@@ -224,6 +224,7 @@ class Order(Base):
     customer_phone = Column(String(30), nullable=True)      # новый формат: телефон
     customer_telegram = Column(String(100), nullable=True)  # новый формат: @username
     delivery_address = Column(Text, nullable=True)          # shipping address
+    delivery_service = Column(String(32), nullable=True)    # 5post | yandex | ozon | cdek
     comment = Column(Text, nullable=True)
     admin_note = Column(Text, nullable=True)                # внутренние заметки менеджера
     # ── Soft-delete (корзина удалённых заказов) ───────────────────────────────
@@ -238,6 +239,7 @@ class Order(Base):
     amount = Column(Numeric(10, 2), nullable=True)          # итоговая сумма заказа
     bonus_spent = Column(Numeric(10, 2), default=0, nullable=False, server_default="0")
     referral_cashback_paid = Column(Boolean, default=False, nullable=False, server_default="0")
+    own_cashback_paid = Column(Boolean, default=False, nullable=False, server_default="0")
     bonus_refunded = Column(Boolean, default=False, nullable=False, server_default="0")
     # ─────────────────────────────────────────────────────────────────────────
     created_at = Column(DateTime(timezone=True), server_default=func.now())

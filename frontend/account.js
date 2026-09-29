@@ -279,6 +279,7 @@ async function initAccount() {
   } catch (e) { return; }
 
   renderHeader(me);
+  await loadAccountCopy();
   loadOverview();
   setupTabs();
   setupProfile(me);
@@ -288,6 +289,26 @@ async function initAccount() {
   setupReferral(me);
   setupBonuses();
   setupNotifications();
+}
+
+function accountText(key, fallback) {
+  const value = window._accountCopy && window._accountCopy[key];
+  if (value == null || String(value).trim() === '') return fallback;
+  return String(value);
+}
+
+async function loadAccountCopy() {
+  try {
+    const res = await fetch(`${API}/account-copy`);
+    if (!res.ok) return;
+    window._accountCopy = await res.json();
+    document.querySelectorAll('[data-ac]').forEach((el) => {
+      const key = el.getAttribute('data-ac');
+      const value = window._accountCopy[key];
+      if (value == null || String(value).trim() === '') return;
+      el.textContent = String(value);
+    });
+  } catch (e) {}
 }
 
 function renderHeader(me) {
@@ -379,7 +400,7 @@ async function loadOrders() {
     const res = await apiFetch('/account/orders?per_page=50');
     const data = await res.json();
     if (!data.items.length) {
-      list.innerHTML = '<div class="state-box"><div class="state-icon">📦</div><div class="state-title">Заказов пока нет</div><div class="state-sub">Ваши покупки появятся здесь</div></div>';
+      list.innerHTML = `<div class="state-box"><div class="state-icon">📦</div><div class="state-title">${escapeHtml(accountText('orders_empty_title', 'Заказов пока нет'))}</div><div class="state-sub">${escapeHtml(accountText('orders_empty_text', 'Ваши покупки появятся здесь'))}</div></div>`;
       return;
     }
     list.innerHTML = data.items.map(orderCard).join('');
@@ -396,7 +417,14 @@ function orderCard(o) {
 
   // Блок доставки/контактов — показываем, если есть хоть что-то.
   const meta = [];
+  const services = { '5post': '5Post', yandex: 'Яндекс', ozon: 'Ozon', cdek: 'СДЭК' };
+  if (o.delivery_service) meta.push(`<div class="order-meta-line">🚚 ${escapeHtml(services[o.delivery_service] || o.delivery_service)}</div>`);
   if (o.delivery_address) meta.push(`<div class="order-meta-line">📦 ${escapeHtml(o.delivery_address)}</div>`);
+  const bonusPaid = Number(o.bonus_spent || 0);
+  if (bonusPaid > 0 || o.amount != null) {
+    const rubles = o.amount != null ? Number(o.amount) : 0;
+    meta.push(`<div class="order-meta-line">🎁 Бонусами ${fmtPrice(bonusPaid)} · 💳 рублями ${fmtPrice(rubles)}</div>`);
+  }
   const contactParts = [];
   if (o.customer_phone) contactParts.push(`📞 ${escapeHtml(o.customer_phone)}`);
   if (o.customer_telegram) contactParts.push(`💬 @${escapeHtml(String(o.customer_telegram).replace('@', ''))}`);
@@ -415,7 +443,7 @@ function orderCard(o) {
       ${metaHtml}
       <div class="order-card-foot">
         <span class="order-pay status-pay-${o.payment_status}">${PAYMENT_LABELS[o.payment_status] || o.payment_status}</span>
-        <span class="order-total">${fmtPrice(total)}</span>
+        <span class="order-total">${fmtPrice(bonusPaid > 0 && o.amount != null ? Number(o.amount) : total)}</span>
       </div>
     </div>`;
 }
@@ -509,7 +537,7 @@ async function loadAddresses() {
     const res = await apiFetch('/account/addresses');
     const data = await res.json();
     if (!data.length) {
-      list.innerHTML = '<div class="state-box"><div class="state-icon">📍</div><div class="state-title">Адресов нет</div><div class="state-sub">Добавьте адрес для быстрого оформления</div></div>';
+      list.innerHTML = `<div class="state-box"><div class="state-icon">📍</div><div class="state-title">${escapeHtml(accountText('addresses_empty_title', 'Адресов нет'))}</div><div class="state-sub">${escapeHtml(accountText('addresses_empty_text', 'Добавьте адрес для быстрого оформления'))}</div></div>`;
       return;
     }
     list.innerHTML = data.map(addrCard).join('');
@@ -583,7 +611,7 @@ async function loadFavorites() {
     const data = await res.json();
     const html = (data || []).map(favCard).filter(Boolean).join('');
     if (!html) {
-      list.innerHTML = '<div class="state-box"><div class="state-icon">❤️</div><div class="state-title">Избранного нет</div><div class="state-sub">Добавляйте товары в избранное в каталоге</div></div>';
+      list.innerHTML = `<div class="state-box"><div class="state-icon">❤️</div><div class="state-title">${escapeHtml(accountText('favorites_empty_title', 'Избранного нет'))}</div><div class="state-sub">${escapeHtml(accountText('favorites_empty_text', 'Добавляйте товары в избранное в каталоге'))}</div></div>`;
       return;
     }
     list.innerHTML = html;
@@ -642,7 +670,10 @@ function paintReferral(data) {
 
   const rules = document.getElementById('refRules');
   if (rules) {
-    if (data.program_enabled === false) {
+    const custom = accountText('referral_rules', '');
+    if (custom) {
+      rules.textContent = custom;
+    } else if (data.program_enabled === false) {
       rules.textContent = 'Реферальная программа сейчас на паузе. Ссылку и код всё равно можно копировать — начисления включит магазин.';
     } else {
       const bits = ['за регистрацию друга бонусы не начисляются'];
@@ -655,7 +686,7 @@ function paintReferral(data) {
       if (data.buyer_discount_enabled !== false) {
         bits.push(`по вашему промокоду ему скидка ${data.discount_percent}%`);
       }
-      rules.innerHTML = `Как это работает: ${bits.join('; ')}. Бонусами можно оплатить до ${data.max_bonus_spend_percent ?? 99}% заказа.`;
+      rules.textContent = `Как это работает: ${bits.join('; ')}. Бонусами можно оплатить до ${data.max_bonus_spend_percent ?? 99}% заказа.`;
     }
   }
 }
@@ -699,6 +730,11 @@ async function setupReferral(me) {
           registration_bonus: cfg.referral.registration_bonus ?? data.registration_bonus,
           purchase_cashback_percent: cfg.referral.purchase_cashback_percent ?? data.purchase_cashback_percent,
           discount_percent: cfg.referral.discount_percent ?? data.discount_percent,
+          max_bonus_spend_percent: cfg.referral.max_bonus_spend_percent ?? data.max_bonus_spend_percent,
+          first_purchase_bonus_enabled: cfg.referral.first_purchase_bonus_enabled ?? data.first_purchase_bonus_enabled,
+          first_purchase_bonus: cfg.referral.first_purchase_bonus ?? data.first_purchase_bonus,
+          purchase_cashback_enabled: cfg.referral.purchase_cashback_enabled ?? data.purchase_cashback_enabled,
+          buyer_discount_enabled: cfg.referral.buyer_discount_enabled ?? data.buyer_discount_enabled,
         });
       }
     }
@@ -732,8 +768,17 @@ async function setupBonuses() {
     const res = await apiFetch('/account/bonuses');
     const data = await res.json();
     document.getElementById('bonusBalance').textContent = data.balance || 0;
+    const cashLine = document.getElementById('ownCashbackLine');
+    if (cashLine) {
+      const pct = Number(data.max_bonus_spend_percent);
+      const cap = Number.isFinite(pct) ? pct : 99;
+      const own = data.own_cashback_enabled
+        ? `Кэшбэк за ваши покупки: ${data.own_cashback_percent}% от суммы товаров, после оплаты.`
+        : 'Кэшбэк за свои покупки сейчас выключен.';
+      cashLine.textContent = `${own} Бонусами можно оплатить до ${cap}% заказа.`;
+    }
     if (!data.transactions.length) {
-      box.innerHTML = '<div class="state-box"><div class="state-icon">🎁</div><div class="state-title">Бонусов пока нет</div><div class="state-sub">Зарабатывайте бонусы за покупки и по рефералке</div></div>';
+      box.innerHTML = `<div class="state-box"><div class="state-icon">🎁</div><div class="state-title">${escapeHtml(accountText('bonus_empty_title', 'Бонусов пока нет'))}</div><div class="state-sub">${escapeHtml(accountText('bonus_empty_text', 'Зарабатывайте бонусы за свои покупки и по реферальной программе.'))}</div></div>`;
       return;
     }
     box.innerHTML = data.transactions.map(t => `

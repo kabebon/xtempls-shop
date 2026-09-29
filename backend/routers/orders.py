@@ -90,9 +90,15 @@ async def create_order(
                 detail="Укажите адрес доставки (минимум 5 символов)",
             )
         data.delivery_address = addr
+        if not data.delivery_service:
+            raise HTTPException(
+                status_code=400,
+                detail="Выберите службу доставки: 5Post, Яндекс, Ozon или СДЭК",
+            )
     else:
         # Design requests have no shipping.
         data.delivery_address = None
+        data.delivery_service = None
 
     # Resolve a TRUSTED chat_id from the Telegram-signed initData.
     # Ignore any tg_user_chat_id coming from the client body.

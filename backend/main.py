@@ -116,6 +116,7 @@ _FIELD_LABELS = {
     "customer_telegram": "Telegram",
     "customer_contact": "Контакт",
     "delivery_address": "Адрес доставки",
+    "delivery_service": "Служба доставки",
     "comment": "Комментарий",
     "items": "Товары в заказе",
     "consent_accepted": "Согласие с офертой",
@@ -212,5 +213,10 @@ async def public_config():
             "purchase_cashback_enabled": bool(ref.get("purchase_cashback_enabled", True)),
             "buyer_discount_enabled": bool(ref.get("buyer_discount_enabled", True)),
             "min_order_amount": str(ref.get("min_order_amount", 0)),
+            "max_bonus_spend_percent": str(ref.get("max_bonus_spend_percent", 99)),
+            "own_cashback_enabled": bool(ref.get("own_cashback_enabled", False)),
+            "own_cashback_percent": str(ref.get("own_cashback_percent", 0)),
+            "first_purchase_bonus_enabled": bool(ref.get("first_purchase_bonus_enabled", True)),
+            "first_purchase_bonus": str(ref.get("first_purchase_bonus", 0)),
         },
     }

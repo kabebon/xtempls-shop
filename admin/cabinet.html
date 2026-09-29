@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XTEMPLS Admin — Личный кабинет</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=1.0.5" />
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">XTEMPLS</div>
+    <div class="sidebar-label">Навигация</div>
+    <a class="nav-item" href="dashboard.html">Дашборд</a>
+    <a class="nav-item" href="products.html">Товары</a>
+    <a class="nav-item" href="categories.html">Категории</a>
+    <a class="nav-item" href="orders.html">Заказы</a>
+    <a class="nav-item" href="trash.html">Корзина</a>
+    <a class="nav-item" href="subscribers.html">Подписчики</a>
+    <a class="nav-item" href="customers.html">Заказчики</a>
+    <a class="nav-item" href="pages.html">Тексты сайта</a>
+    <a class="nav-item active" href="cabinet.html">Личный кабинет</a>
+    <a class="nav-item" href="analytics.html">Аналитика</a>
+    <a class="nav-item" href="promo.html">Промокоды</a>
+    <a class="nav-item" href="users.html">Администраторы</a>
+    <div class="sidebar-bottom">
+      <div class="admin-badge">
+        <div class="admin-avatar" id="adminInitial">A</div>
+        <div>
+          <div class="admin-name" id="adminLogin">Admin</div>
+          <div class="admin-role">Администратор</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">Выйти</button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">Личный кабинет</div>
+    </div>
+    <div class="page-body">
+      <div class="card">
+        <p style="color:var(--text-muted);margin:0 0 16px;">Тексты, которые видит покупатель в личном кабинете. Пустое поле «Как устроена рефералка» оставляет автоматический текст из настроек бонусов.</p>
+        <div id="fields"></div>
+        <button class="btn btn-primary" id="saveBtn" type="button">Сохранить тексты кабинета</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js?v=1.0.3"></script>
+<script>
+  requireAuth();
+  loadAdminInfo();
+
+  const FIELDS = [
+    ['Обзор', [
+      ['overview_title', 'Заголовок вкладки'],
+    ]],
+    ['Заказы', [
+      ['orders_title', 'Заголовок вкладки'],
+      ['orders_empty_title', 'Заголовок, если заказов нет'],
+      ['orders_empty_text', 'Пояснение, если заказов нет', true],
+    ]],
+    ['Адреса и избранное', [
+      ['addresses_empty_title', 'Заголовок, если адресов нет'],
+      ['addresses_empty_text', 'Пояснение, если адресов нет', true],
+      ['favorites_empty_title', 'Заголовок, если избранного нет'],
+      ['favorites_empty_text', 'Пояснение, если избранного нет', true],
+    ]],
+    ['Реферальная система', [
+      ['referral_title', 'Заголовок'],
+      ['referral_hint', 'Подсказка под промокодом', true],
+      ['referral_rules', 'Как устроена рефералка. Пусто — текст соберётся из процентов и сумм', true],
+      ['step_1', 'Шаг 1', true],
+      ['step_2', 'Шаг 2', true],
+      ['step_3', 'Шаг 3', true],
+      ['step_4', 'Шаг 4', true],
+      ['step_5', 'Шаг 5', true],
+    ]],
+    ['Бонусы', [
+      ['bonus_title', 'Заголовок вкладки'],
+      ['bonus_available', 'Подпись над балансом'],
+      ['bonus_unit', 'Подпись под балансом'],
+      ['bonus_note', 'Пояснение под балансом', true],
+      ['bonus_history', 'Заголовок истории'],
+      ['bonus_empty_title', 'Заголовок, если начислений нет'],
+      ['bonus_empty_text', 'Пояснение, если начислений нет', true],
+    ]],
+  ];
+
+  const box = document.getElementById('fields');
+  box.innerHTML = FIELDS.map(([title, rows]) => `
+    <h3 style="margin:18px 0 10px;">${title}</h3>
+    ${rows.map(([key, label, area]) => `
+      <div class="form-group">
+        <label class="form-label" for="f_${key}">${label}</label>
+        ${area
+          ? `<textarea class="form-input" id="f_${key}" rows="3"></textarea>`
+          : `<input class="form-input" id="f_${key}" />`}
+      </div>
+    `).join('')}
+  `).join('');
+
+  async function loadCopy() {
+    const res = await apiFetch('/api/account-copy');
+    if (!res.ok) { showToast('Не удалось загрузить тексты', 'error'); return; }
+    const data = await res.json();
+    FIELDS.flatMap(([, rows]) => rows).forEach(([key]) => {
+      const el = document.getElementById('f_' + key);
+      if (el) el.value = data[key] || '';
+    });
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const body = {};
+    FIELDS.flatMap(([, rows]) => rows).forEach(([key]) => {
+      body[key] = document.getElementById('f_' + key).value;
+    });
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    const res = await apiFetch('/api/admin/account-copy', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    btn.disabled = false;
+    if (res.ok) showToast('Сохранено', 'success');
+    else {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.detail || 'Ошибка сохранения', 'error');
+    }
+  });
+
+  loadCopy();
+</script>
+</body>
+</html>

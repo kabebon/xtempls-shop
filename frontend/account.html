@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/theme.css?v=2.2.0" />
+  <link rel="stylesheet" href="/theme.css?v=2.3.0" />
   <script src="/tg-boot.js"></script>
 </head>
 <body>
@@ -65,12 +65,12 @@
 
     <div class="account-content">
       <section class="account-section active" id="tab-overview">
-        <h2>Обзор</h2>
+        <h2 data-ac="overview_title">Обзор</h2>
         <div class="account-stats" id="overviewStats"></div>
       </section>
 
       <section class="account-section" id="tab-orders">
-        <h2>Мои заказы</h2>
+        <h2 data-ac="orders_title">Мои заказы</h2>
         <div id="ordersList"></div>
       </section>
 
@@ -140,13 +140,13 @@
 
       <section class="account-section" id="tab-referral">
         <div class="ref-box">
-          <h2>Приглашайте друзей — получайте бонусы</h2>
+          <h2 data-ac="referral_title">Приглашайте друзей — получайте бонусы</h2>
           <p class="ref-text" id="refRules">Друг регистрируется по вашей ссылке и покупает по вашему промокоду. Вам на бонусный счёт капает кэшбэк, им можно оплачивать свои заказы.</p>
           <div class="ref-code-card">
             <div class="ref-code-label">Ваш промокод</div>
             <div class="ref-code-value" id="refPromoCode">—</div>
             <button class="btn btn-primary" id="copyPromoBtn" type="button">Скопировать промокод</button>
-            <p class="ref-hint">Отправьте код другу. Он вводит его при оформлении заказа и получает скидку. Вам — кэшбэк после оплаты.</p>
+            <p class="ref-hint" data-ac="referral_hint">Отправьте код другу. Он вводит его при оформлении заказа и получает скидку. Вам — кэшбэк после оплаты.</p>
           </div>
           <div class="ref-share">
             <div class="ref-share-item">
@@ -165,11 +165,11 @@
             </div>
           </div>
           <ol class="ref-steps" id="refSteps">
-            <li>Скопируйте ссылку и отправьте другу.</li>
-            <li>Друг регистрируется по ссылке. За регистрацию бонусы не приходят.</li>
-            <li>После первой оплаченной покупки друга вам начисляется фиксированный бонус.</li>
-            <li>С каждой следующей его покупки вам начисляется процент.</li>
-            <li>Бонусами можно оплатить до 99% своего заказа.</li>
+            <li data-ac="step_1">Скопируйте ссылку и отправьте другу.</li>
+            <li data-ac="step_2">Друг регистрируется по ссылке. За регистрацию бонусы не приходят.</li>
+            <li data-ac="step_3">После первой оплаченной покупки друга вам начисляется фиксированный бонус.</li>
+            <li data-ac="step_4">С каждой следующей его покупки вам начисляется процент.</li>
+            <li data-ac="step_5">Бонусами можно оплатить часть своего заказа — лимит задаёт магазин.</li>
           </ol>
           <div class="ref-stat-row">
             <div class="ref-stat">
@@ -186,13 +186,15 @@
       </section>
 
       <section class="account-section" id="tab-bonuses">
-        <h2>Бонусный счёт</h2>
+        <h2 data-ac="bonus_title">Бонусный счёт</h2>
         <div class="bonus-summary">
-          <div class="bonus-balance-label">Доступно к списанию</div>
+          <div class="bonus-balance-label" data-ac="bonus_available">Доступно к списанию</div>
           <div class="bonus-balance-num" id="bonusBalance">0</div>
-          <div class="bonus-balance-label">бонусов на счету, ₽</div>
+          <div class="bonus-balance-label" data-ac="bonus_unit">бонусов на счету, ₽</div>
         </div>
-        <h3 class="account-h3">История начислений</h3>
+        <p class="ref-text" id="bonusNote" data-ac="bonus_note">За каждую оплаченную покупку на счёт приходят баллы. Ими можно оплатить часть следующего заказа.</p>
+        <p class="ref-text" id="ownCashbackLine"></p>
+        <h3 class="account-h3" data-ac="bonus_history">История начислений</h3>
         <div id="bonusList"></div>
       </section>
 
@@ -241,6 +243,6 @@
 </div>
 <div class="toast" id="toast"></div>
 <script src="/nav.js?v=2.0.0" defer></script>
-<script src="/account.js?v=2.2.0" defer></script>
+<script src="/account.js?v=2.3.0" defer></script>
 </body>
 </html>

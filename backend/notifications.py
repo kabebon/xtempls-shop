@@ -7,8 +7,16 @@ import asyncio
 import httpx
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
 from html import escape as html_escape
 from database import settings
+
+DELIVERY_LABELS = {
+    "5post": "5Post",
+    "yandex": "Яндекс",
+    "ozon": "Ozon",
+    "cdek": "СДЭК",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +31,37 @@ _broadcast_status: dict = {
     "started_at": None,
     "finished_at": None,
 }
+
+
+def money_text(value) -> str:
+    amount = Decimal(value or 0).quantize(Decimal("0.01"))
+    if amount == amount.to_integral_value():
+        return f"{int(amount):,}".replace(",", " ")
+    return f"{amount:.2f}".replace(".", ",")
+
+
+def payment_split_text(order) -> str:
+    """Сколько заказа закрыто бонусами и сколько осталось рублями."""
+    bonus = Decimal(getattr(order, "bonus_spent", 0) or 0)
+    rubles = Decimal(getattr(order, "amount", 0) or 0)
+    goods = (bonus + rubles).quantize(Decimal("0.01"))
+    return (
+        f"💰 <b>Сумма заказа:</b> {money_text(goods)} ₽\n"
+        f"🎁 <b>Бонусами:</b> {money_text(bonus)} ₽\n"
+        f"💳 <b>Рублями:</b> {money_text(rubles)} ₽\n"
+    )
+
+
+def delivery_block(order) -> str:
+    text = ""
+    service = getattr(order, "delivery_service", None)
+    if service:
+        label = DELIVERY_LABELS.get(str(service), str(service))
+        text += f"🚚 <b>Служба доставки:</b> {html_escape(label)}\n"
+    address = getattr(order, "delivery_address", None)
+    if address:
+        text += f"📦 <b>Адрес доставки:</b> {html_escape(address)}\n"
+    return text
 
 
 async def send_message(chat_id: int, text: str, parse_mode: str = "HTML") -> bool:
@@ -84,8 +123,6 @@ async def notify_manager_new_order(order) -> bool:
         f" × {item.quantity} — {int(item.product_price * item.quantity):,} ₽"
         for item in order.items
     )
-    total = sum(item.product_price * item.quantity for item in order.items)
-
     is_design = getattr(order, "order_type", None) and str(order.order_type).endswith("design")
     type_label = "🎨 <b>Заявка на дизайн #{}</b>".format(order.id) if is_design \
         else "🛍 <b>Новый заказ #{}</b>".format(order.id)
@@ -115,17 +152,16 @@ async def notify_manager_new_order(order) -> bool:
         f"{contact_lines}\n"
     )
 
-    delivery_address = getattr(order, "delivery_address", None)
-    if delivery_address:
-        text += f"📦 <b>Адрес доставки:</b> {html_escape(delivery_address)}\n"
+    text += delivery_block(order)
 
     if order.comment:
         text += f"📝 <b>Комментарий:</b> {html_escape(order.comment)}\n"
     
     if order.items:
-        text += f"\n<b>Товары:</b>\n{items_text}\n\n💰 <b>Итого: {int(total):,} ₽</b>\n\n"
+        text += f"\n<b>Товары:</b>\n{items_text}\n\n"
     else:
         text += "\n"
+    text += payment_split_text(order) + "\n"
         
     text += f"Управление заказами: <a href='{settings.webapp_url}/admin/orders.html'>Перейти в админку</a>"
 

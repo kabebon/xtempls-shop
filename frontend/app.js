@@ -351,11 +351,12 @@ window.openCheckout = function() {
   window._appliedPromo = null;
   window._bonusSpend = 0;
   window._bonusBalance = 0;
+  window._bonusMaxPercent = null;
   const spendInput = document.getElementById('chkBonusSpend');
   if (spendInput) spendInput.value = '';
   const bonusMsg = document.getElementById('bonusSpendMsg');
   if (bonusMsg) { bonusMsg.textContent = ''; bonusMsg.className = 'promo-msg'; }
-  loadCheckoutBonuses();
+  window._bonusReady = loadCheckoutBonuses();
   updateCheckoutTotal();
   const checkoutModal = document.getElementById('checkoutModal');
   const checkoutBackdrop = document.getElementById('checkoutBackdrop');
@@ -381,14 +382,46 @@ function checkoutBaseAfterPromo() {
   return Math.max(0, base - disc);
 }
 
+function moneyDown(n) {
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n * 100 + 1e-8) / 100;
+}
+
+function bonusMaxPercent() {
+  const n = Number(window._bonusMaxPercent);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(100, Math.max(0, n));
+}
+
+function maxBonusSpend() {
+  const pct = bonusMaxPercent();
+  if (pct == null) return 0;
+  const after = checkoutBaseAfterPromo();
+  const byPercent = moneyDown(after * pct / 100);
+  const balance = Number(window._bonusBalance || 0);
+  return moneyDown(Math.min(balance, byPercent, after));
+}
+
+function refreshBonusCapHint() {
+  const hint = document.getElementById('bonusCapHint');
+  if (!hint) return;
+  const pct = bonusMaxPercent();
+  if (pct == null) {
+    hint.textContent = 'Считаем, сколько можно списать…';
+    return;
+  }
+  hint.textContent = `Можно списать не больше ${pct}% заказа — до ${fmt(maxBonusSpend())}. Остаток оплачивается рублями.`;
+}
+
 function updateCheckoutTotal() {
   const totalEl = document.getElementById('checkoutTotal');
   const discEl = document.getElementById('checkoutDiscount');
   const promo = window._appliedPromo;
   const base = cartTotal();
   const afterPromo = checkoutBaseAfterPromo();
-  const spend = Math.min(Number(window._bonusSpend || 0), afterPromo, Number(window._bonusBalance || 0));
+  const spend = Math.min(Number(window._bonusSpend || 0), maxBonusSpend());
   window._bonusSpend = spend;
+  refreshBonusCapHint();
   const lines = [];
   if (promo && promo.discount_percent) {
     const disc = Math.round(base * promo.discount_percent / 100);
@@ -416,10 +449,15 @@ async function loadCheckoutBonuses() {
     if (!res.ok) { box.style.display = 'none'; return; }
     const data = await res.json();
     window._bonusBalance = Number(data.balance || 0);
+    const pct = Number(data.max_bonus_spend_percent);
+    window._bonusMaxPercent = Number.isFinite(pct) ? pct : 99;
     const avail = document.getElementById('bonusAvailable');
     if (avail) avail.textContent = fmt(window._bonusBalance);
     box.style.display = window._bonusBalance > 0 ? '' : 'none';
+    refreshBonusCapHint();
+    if (window._bonusSpend) window.applyBonusSpend();
   } catch (e) {
+    window._bonusMaxPercent = 99;
     box.style.display = 'none';
   }
 }
@@ -431,8 +469,9 @@ window.toggleBonusSpend = function() {
   controls.style.display = open ? 'flex' : 'none';
   if (open) {
     const input = document.getElementById('chkBonusSpend');
-    const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
-    if (input && !input.value) input.value = String(Math.floor(max));
+    const max = maxBonusSpend();
+    if (input && !input.value) input.value = String(max);
+    window.applyBonusSpend();
   }
 };
 
@@ -441,13 +480,14 @@ window.applyBonusSpend = function() {
   const msg = document.getElementById('bonusSpendMsg');
   let val = Number(input?.value || 0);
   if (Number.isNaN(val) || val < 0) val = 0;
-  const max = Math.min(Number(window._bonusBalance || 0), checkoutBaseAfterPromo());
+  const max = maxBonusSpend();
   if (val > max) val = max;
-  window._bonusSpend = Math.round(val * 100) / 100;
+  window._bonusSpend = moneyDown(val);
   if (input) input.value = String(window._bonusSpend);
   if (msg) {
+    const left = Math.max(0, checkoutBaseAfterPromo() - window._bonusSpend);
     msg.textContent = window._bonusSpend > 0
-      ? `Спишем ${fmt(window._bonusSpend)} с бонусного счёта`
+      ? `Спишем ${fmt(window._bonusSpend)} бонусами. К оплате рублями: ${fmt(left)}.`
       : 'Бонусы не списываются';
     msg.className = 'promo-msg promo-ok';
   }
@@ -524,7 +564,11 @@ window.submitOrder = async function(e) {
   const name = document.getElementById('chkName')?.value.trim();
   const phone = document.getElementById('chkPhone')?.value.trim();
   const telegramRaw = document.getElementById('chkTelegram')?.value.trim();
-  const address = document.getElementById('chkAddress')?.value.trim();
+  const city = document.getElementById('chkCity')?.value.trim();
+  const street = document.getElementById('chkStreet')?.value.trim();
+  const house = document.getElementById('chkHouse')?.value.trim();
+  const service = document.querySelector('input[name="deliveryService"]:checked')?.value || '';
+  const address = [city, street, house].filter(Boolean).join(', ');
   const comment = document.getElementById('chkComment')?.value.trim();
   const consent = document.getElementById('chkConsent')?.checked;
 
@@ -550,8 +594,12 @@ window.submitOrder = async function(e) {
       return;
     }
   }
-  if (!address || address.length < 5) {
-    showToast('Укажите адрес доставки (минимум 5 символов)');
+  if (!service) {
+    showToast('Выберите службу доставки');
+    return;
+  }
+  if (!city || !street || !house) {
+    showToast('Укажите город, улицу и дом');
     return;
   }
   if (!consent) {
@@ -572,6 +620,10 @@ window.submitOrder = async function(e) {
         name,
         phone,
         telegram: telegramRaw,
+        city,
+        street,
+        house,
+        delivery_service: service,
         address,
         comment,
         consent,
@@ -588,6 +640,11 @@ window.submitOrder = async function(e) {
     return;
   }
 
+  if (window._bonusReady) {
+    try { await window._bonusReady; } catch (e) {}
+  }
+  window._bonusSpend = Math.min(Number(window._bonusSpend || 0), maxBonusSpend());
+
   const btn = document.getElementById('submitOrderBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Отправка...'; }
 
@@ -597,6 +654,7 @@ window.submitOrder = async function(e) {
       customer_phone: phone,
       customer_telegram: telegram || null,
       delivery_address: address,
+      delivery_service: service,
       comment: comment || null,
       tg_init_data: tg?.initData || null,
       promo_code: window._appliedPromo?.code || null,
@@ -630,6 +688,10 @@ window.submitOrder = async function(e) {
             name,
             phone,
             telegram: telegramRaw,
+            city,
+            street,
+            house,
+            delivery_service: service,
             address,
             comment,
             consent,
@@ -668,20 +730,25 @@ window.submitOrder = async function(e) {
     const contactDisplay = phone + (telegram ? ' · @' + telegram : '');
     const checkoutBody = document.getElementById('checkoutModal')?.querySelector('.cart-body');
     const checkoutFooter = document.getElementById('checkoutModal')?.querySelector('.cart-footer');
+    const bonusPaid = Number(orderData.bonus_spent || 0);
+    const rublesDue = Number(orderData.amount || 0);
+    const paidNote = rublesDue <= 0
+      ? 'Заказ закрыт бонусами, доплачивать рублями не нужно.'
+      : 'Менеджер свяжется с вами по указанному контакту.';
     if (checkoutBody) {
       checkoutBody.innerHTML = `
         <div class="order-success">
-          <div class="success-icon">✅</div>
-          <div class="success-title">Спасибо за заказ!</div>
-          <div class="success-text">
-            ${name}, ваш заказ принят.<br/>
-            Мы свяжемся с вами по контакту<br/>
-            <strong>${contactDisplay}</strong><br/><br/>
-            Менеджер скоро ответит вам.
+          <div class="auth-ico">✓</div>
+          <div class="success-title">Заказ оформлен</div>
+          <p class="success-text">${name}, заказ №${orderData.id} принят.<br>Контакт: <strong>${contactDisplay}</strong></p>
+          <div class="order-pay-split">
+            <div><span>Бонусами</span><b>${fmt(bonusPaid)}</b></div>
+            <div><span>Рублями</span><b>${fmt(rublesDue)}</b></div>
           </div>
-          <div class="success-actions" style="margin-top: 24px;">
-            <button class="btn-success-close" onclick="closeSuccessAndGo('close')">Закрыть</button>
-            <button class="btn-success-home" onclick="closeSuccessAndGo('home')">На главную</button>
+          <p class="success-text">${paidNote}</p>
+          <div class="success-actions">
+            <button type="button" class="btn btn-primary" onclick="closeSuccessAndGo('close')">Закрыть</button>
+            <button type="button" class="btn btn-secondary" onclick="closeSuccessAndGo('home')">На главную</button>
           </div>
         </div>
       `;
@@ -784,8 +851,19 @@ function injectCartUI() {
             <input type="tel" id="chkPhone" class="chk-input" required placeholder="+7 999 123-45-67" inputmode="tel" />
             <label class="chk-label">Telegram (необязательно)</label>
             <input type="text" id="chkTelegram" class="chk-input" placeholder="@username" inputmode="text" />
+            <label class="chk-label">Служба доставки *</label>
+            <div class="delivery-services" id="deliveryServices">
+              <label class="delivery-chip"><input type="radio" name="deliveryService" value="5post" /> 5Post</label>
+              <label class="delivery-chip"><input type="radio" name="deliveryService" value="yandex" /> Яндекс</label>
+              <label class="delivery-chip"><input type="radio" name="deliveryService" value="ozon" /> Ozon</label>
+              <label class="delivery-chip"><input type="radio" name="deliveryService" value="cdek" /> СДЭК</label>
+            </div>
             <label class="chk-label">Адрес доставки *</label>
-            <textarea id="chkAddress" class="chk-input" required minlength="5" rows="2" placeholder="Город, улица, дом, квартира"></textarea>
+            <div class="checkout-address">
+              <input type="text" id="chkCity" class="chk-input" required placeholder="Город" />
+              <input type="text" id="chkStreet" class="chk-input" required placeholder="Улица" />
+              <input type="text" id="chkHouse" class="chk-input" required placeholder="Дом" />
+            </div>
             <label class="chk-label">Промокод</label>
             <div class="promo-row">
               <input type="text" id="chkPromo" class="chk-input promo-input" placeholder="Введите промокод" />
@@ -798,13 +876,14 @@ function injectCartUI() {
                 <button type="button" class="promo-apply-btn" onclick="toggleBonusSpend()">Списать бонусы</button>
               </div>
               <div id="bonusSpendControls" class="promo-row" style="display:none;margin-top:8px;">
-                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="1" placeholder="Сколько списать" />
+                <input type="number" id="chkBonusSpend" class="chk-input promo-input" min="0" step="0.01" placeholder="Сколько списать" />
                 <button type="button" class="promo-apply-btn" onclick="applyBonusSpend()">Применить</button>
               </div>
               <div id="bonusSpendMsg" class="promo-msg"></div>
+              <div id="bonusCapHint" class="bonus-cap-hint"></div>
             </div>
             <label class="chk-label">Комментарий к заказу</label>
-            <textarea id="chkComment" class="chk-input" placeholder="Пожелания и т.д." rows="2"></textarea>
+            <textarea id="chkComment" class="chk-input" placeholder="Адрес пункта выдачи, пожелания и т.д." rows="2"></textarea>
             <label class="chk-consent-row">
               <input type="checkbox" id="chkConsent" />
               <span class="chk-consent-text">
@@ -895,7 +974,9 @@ function resumeCheckoutIfRequested() {
         const nameEl = document.getElementById('chkName');
         const phoneEl = document.getElementById('chkPhone');
         const tgEl = document.getElementById('chkTelegram');
-        const addrEl = document.getElementById('chkAddress');
+        const cityEl = document.getElementById('chkCity');
+        const streetEl = document.getElementById('chkStreet');
+        const houseEl = document.getElementById('chkHouse');
         const commEl = document.getElementById('chkComment');
         const consEl = document.getElementById('chkConsent');
         const promoEl = document.getElementById('chkPromo');
@@ -903,7 +984,13 @@ function resumeCheckoutIfRequested() {
         if (nameEl && intent.name) nameEl.value = intent.name;
         if (phoneEl && intent.phone) phoneEl.value = intent.phone;
         if (tgEl && intent.telegram !== undefined) tgEl.value = intent.telegram || '';
-        if (addrEl && intent.address) addrEl.value = intent.address;
+        if (cityEl && intent.city) cityEl.value = intent.city;
+        if (streetEl && intent.street) streetEl.value = intent.street;
+        if (houseEl && intent.house) houseEl.value = intent.house;
+        if (intent.delivery_service) {
+          const radio = document.querySelector(`input[name="deliveryService"][value="${intent.delivery_service}"]`);
+          if (radio) radio.checked = true;
+        }
         if (commEl && intent.comment !== undefined) commEl.value = intent.comment || '';
         if (consEl && intent.consent !== undefined) consEl.checked = !!intent.consent;
         if (promoEl && intent.promo) {
@@ -918,7 +1005,10 @@ function resumeCheckoutIfRequested() {
           if (spendEl) spendEl.value = String(window._bonusSpend);
           const controls = document.getElementById('bonusSpendControls');
           if (controls) controls.style.display = 'flex';
-          setTimeout(() => {
+          setTimeout(async () => {
+            if (window._bonusReady) {
+              try { await window._bonusReady; } catch (e) {}
+            }
             if (typeof window.applyBonusSpend === 'function') window.applyBonusSpend();
           }, 150);
         }

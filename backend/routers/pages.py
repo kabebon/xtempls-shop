@@ -28,6 +28,20 @@ async def public_homepage(db: AsyncSession = Depends(get_db)):
     return await crud.get_homepage(db)
 
 
+@router.get("/account-copy")
+async def public_account_copy(db: AsyncSession = Depends(get_db)):
+    return await crud.get_account_copy(db)
+
+
+@router.put("/admin/account-copy")
+async def admin_update_account_copy(
+    data: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    _admin=Depends(get_current_admin),
+):
+    return await crud.save_account_copy(db, data)
+
+
 @router.put("/admin/homepage")
 async def admin_update_homepage(
     data: dict = Body(...),

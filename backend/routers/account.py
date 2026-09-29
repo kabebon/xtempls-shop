@@ -309,7 +309,14 @@ async def my_bonuses(
 ):
     balance = await crud.get_bonus_balance(db, current_user.id)
     transactions = await crud.list_bonus_transactions(db, current_user.id)
-    return {"balance": balance, "transactions": transactions}
+    ref = await crud.get_referral_settings(db)
+    return {
+        "balance": balance,
+        "transactions": transactions,
+        "max_bonus_spend_percent": ref.get("max_bonus_spend_percent", 99),
+        "own_cashback_enabled": bool(ref.get("own_cashback_enabled", False)),
+        "own_cashback_percent": ref.get("own_cashback_percent", 0),
+    }
 
 
 # ─── Настройки уведомлений ───────────────────────────────────────────────────
