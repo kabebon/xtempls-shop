@@ -222,6 +222,7 @@ class Order(Base):
     customer_name = Column(String(150), nullable=False)
     customer_contact = Column(String(200), nullable=True)   # legacy: phone or @username (старые заказы)
     customer_phone = Column(String(30), nullable=True)      # новый формат: телефон
+    customer_email = Column(String(200), nullable=True)     # почта для чека ЮKassa
     customer_telegram = Column(String(100), nullable=True)  # новый формат: @username
     delivery_address = Column(Text, nullable=True)          # shipping address
     delivery_service = Column(String(32), nullable=True)    # 5post | yandex | ozon | cdek

@@ -10,6 +10,18 @@ from models import StockStatus, OrderType, PaymentStatus
 
 PHONE_RE = re.compile(r"^\+?\d[\d\s\-\(\)]{4,}\d$")
 TELEGRAM_RE = re.compile(r"^@?[a-zA-Z][a-zA-Z0-9_]{3,31}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_email(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    email = str(v).strip().lower()
+    if not email:
+        return None
+    if len(email) > 200 or not EMAIL_RE.match(email):
+        raise ValueError("Укажите корректный e-mail")
+    return email
 
 
 def _normalize_phone(v: Optional[str]) -> Optional[str]:
@@ -286,6 +298,7 @@ class OrderCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=150)
     # Новый формат — отдельные поля (минимум одно из двух обязательно)
     customer_phone: Optional[str] = Field(None, max_length=30)
+    customer_email: Optional[str] = Field(None, max_length=200)
     customer_telegram: Optional[str] = Field(None, max_length=100)
     # Legacy: для обратной совместимости со старыми клиентами/дизайн-формой
     customer_contact: Optional[str] = Field(None, max_length=200)
@@ -309,6 +322,11 @@ class OrderCreate(BaseModel):
     def _validate_phone(cls, v):
         return _normalize_phone(v)
 
+    @field_validator("customer_email")
+    @classmethod
+    def _validate_email(cls, v):
+        return _normalize_email(v)
+
     @field_validator("customer_telegram")
     @classmethod
     def _validate_telegram(cls, v):
@@ -331,6 +349,9 @@ class OrderCreate(BaseModel):
         # Если заданы новые поля — всё ок. Иначе принимаем legacy customer_contact.
         if not self.customer_phone and not self.customer_telegram and not self.customer_contact:
             raise ValueError("Укажите телефон или Telegram для связи")
+        # «Чеки от ЮKassa» уходят только на почту. Заявка на дизайн чек не формирует.
+        if self.order_type == OrderType.catalog and not self.customer_email:
+            raise ValueError("Укажите e-mail — на него придёт чек")
         return self
 
 
@@ -350,6 +371,7 @@ class OrderOut(BaseModel):
     id: int
     customer_name: str
     customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
     customer_telegram: Optional[str] = None
     customer_contact: Optional[str] = None  # legacy / обратная совместимость
     delivery_address: Optional[str] = None
@@ -416,6 +438,7 @@ class OrderAdminUpdate(BaseModel):
     позиции задним числом рискованно. Все поля optional."""
     customer_name: Optional[str] = Field(None, min_length=1, max_length=150)
     customer_phone: Optional[str] = Field(None, max_length=30)
+    customer_email: Optional[str] = Field(None, max_length=200)
     customer_telegram: Optional[str] = Field(None, max_length=100)
     delivery_address: Optional[str] = Field(None, max_length=2000)
     delivery_service: Optional[str] = Field(None, max_length=32)
@@ -424,6 +447,11 @@ class OrderAdminUpdate(BaseModel):
     status: Optional[str] = None  # new | in_progress | done | cancelled
     payment_status: Optional[str] = None  # pending | paid | failed
     admin_note: Optional[str] = Field(None, max_length=5000)
+
+    @field_validator("customer_email")
+    @classmethod
+    def _validate_email(cls, v):
+        return _normalize_email(v)
 
 
 class OrderListResponse(BaseModel):

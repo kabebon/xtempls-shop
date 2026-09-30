@@ -125,6 +125,7 @@ app.include_router(pages_router.router, prefix="/api")
 _FIELD_LABELS = {
     "customer_name": "Имя и фамилия",
     "customer_phone": "Телефон",
+    "customer_email": "Почта",
     "customer_telegram": "Telegram",
     "customer_contact": "Контакт",
     "delivery_address": "Адрес доставки",

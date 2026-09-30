@@ -357,6 +357,7 @@ window.openCheckout = function() {
   const bonusMsg = document.getElementById('bonusSpendMsg');
   if (bonusMsg) { bonusMsg.textContent = ''; bonusMsg.className = 'promo-msg'; }
   window._bonusReady = loadCheckoutBonuses();
+  prefillCheckoutEmail();
   updateCheckoutTotal();
   const checkoutModal = document.getElementById('checkoutModal');
   const checkoutBackdrop = document.getElementById('checkoutBackdrop');
@@ -447,6 +448,20 @@ function updateCheckoutTotal() {
   }
   if (discEl) discEl.innerHTML = lines.join('<br>');
   if (totalEl) totalEl.textContent = fmt(Math.max(0, afterPromo - spend));
+}
+
+async function prefillCheckoutEmail() {
+  const emailEl = document.getElementById('chkEmail');
+  const token = localStorage.getItem('xtempls_token');
+  if (!emailEl || emailEl.value.trim() || !token) return;
+  try {
+    const res = await fetch(`${API}/account/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const me = await res.json();
+    if (me.email && !emailEl.value.trim()) emailEl.value = me.email;
+  } catch (e) {}
 }
 
 async function loadCheckoutBonuses() {
@@ -575,6 +590,7 @@ window.submitOrder = async function(e) {
   if (e) e.preventDefault();
   const name = document.getElementById('chkName')?.value.trim();
   const phone = document.getElementById('chkPhone')?.value.trim();
+  const email = document.getElementById('chkEmail')?.value.trim();
   const telegramRaw = document.getElementById('chkTelegram')?.value.trim();
   const city = document.getElementById('chkCity')?.value.trim();
   const street = document.getElementById('chkStreet')?.value.trim();
@@ -595,6 +611,11 @@ window.submitOrder = async function(e) {
   const phoneDigits = phoneClean.replace(/\D/g, '');
   if (!phone || phoneDigits.length < 7) {
     showToast('Введите корректный номер телефона (минимум 7 цифр)');
+    return;
+  }
+  if (!/^\S+@\S+\.\S+$/.test(email || '')) {
+    showToast('Укажите почту — на неё придёт чек');
+    document.getElementById('chkEmail')?.focus();
     return;
   }
   // Валидация Telegram (если заполнен): @username, 4–32 символа, латиница/цифры/_.
@@ -631,6 +652,7 @@ window.submitOrder = async function(e) {
       const checkoutData = {
         name,
         phone,
+        email,
         telegram: telegramRaw,
         city,
         street,
@@ -664,6 +686,7 @@ window.submitOrder = async function(e) {
     const body = {
       customer_name: name,
       customer_phone: phone,
+      customer_email: email,
       customer_telegram: telegram || null,
       delivery_address: address,
       delivery_service: service,
@@ -699,6 +722,7 @@ window.submitOrder = async function(e) {
           const checkoutData = {
             name,
             phone,
+            email,
             telegram: telegramRaw,
             city,
             street,
@@ -900,6 +924,8 @@ function injectCartUI() {
             <input type="text" id="chkName" class="chk-input" required minlength="2" placeholder="Иван Иванов" />
             <label class="chk-label">Телефон *</label>
             <input type="tel" id="chkPhone" class="chk-input" required placeholder="+7 999 123-45-67" inputmode="tel" />
+            <label class="chk-label">Почта *</label>
+            <input type="email" id="chkEmail" class="chk-input" required placeholder="you@example.com" autocomplete="email" inputmode="email" />
             <label class="chk-label">Telegram (необязательно)</label>
             <input type="text" id="chkTelegram" class="chk-input" placeholder="@username" inputmode="text" />
             <label class="chk-label">Служба доставки *</label>
@@ -1024,6 +1050,7 @@ function resumeCheckoutIfRequested() {
       if (fresh) {
         const nameEl = document.getElementById('chkName');
         const phoneEl = document.getElementById('chkPhone');
+        const emailEl = document.getElementById('chkEmail');
         const tgEl = document.getElementById('chkTelegram');
         const cityEl = document.getElementById('chkCity');
         const streetEl = document.getElementById('chkStreet');
@@ -1034,6 +1061,7 @@ function resumeCheckoutIfRequested() {
 
         if (nameEl && intent.name) nameEl.value = intent.name;
         if (phoneEl && intent.phone) phoneEl.value = intent.phone;
+        if (emailEl && intent.email) emailEl.value = intent.email;
         if (tgEl && intent.telegram !== undefined) tgEl.value = intent.telegram || '';
         if (cityEl && intent.city) cityEl.value = intent.city;
         if (streetEl && intent.street) streetEl.value = intent.street;
@@ -1468,6 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({
           customer_name: name,
           customer_contact: phone,
+          customer_email: email,
           comment: `Заявка на индивидуальный дизайн. Email: ${email}`,
           order_type: 'design',
           tg_init_data: tg?.initData || null,

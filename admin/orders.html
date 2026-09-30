@@ -261,6 +261,7 @@
         // Объединяем контакты: новые поля (phone/tg), либо legacy customer_contact
         const contactParts = [];
         if (o.customer_phone) contactParts.push(o.customer_phone);
+        if (o.customer_email) contactParts.push(o.customer_email);
         if (o.customer_telegram) contactParts.push('@' + String(o.customer_telegram).replace(/^@/, ''));
         const contactStr = contactParts.length ? contactParts.join(' · ') : (o.customer_contact || '—');
         return `
@@ -369,6 +370,7 @@
     // Объединяем контакты для отображения
     const contactParts = [];
     if (o.customer_phone) contactParts.push('📞 ' + o.customer_phone);
+    if (o.customer_email) contactParts.push('✉️ ' + o.customer_email);
     if (o.customer_telegram) contactParts.push('💬 @' + String(o.customer_telegram).replace(/^@/, ''));
     const contactStr = contactParts.length ? contactParts.join('<br>') : (o.customer_contact || '—');
 
@@ -463,6 +465,10 @@
           <input class="form-input" id="ed_phone" value="${esc(o.customer_phone || '')}" style="width:100%;margin-top:4px;">
         </div>
         <div>
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Почта</label>
+          <input class="form-input" id="ed_email" type="email" value="${esc(o.customer_email || '')}" style="width:100%;margin-top:4px;">
+        </div>
+        <div>
           <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Telegram</label>
           <input class="form-input" id="ed_tg" value="${esc(o.customer_telegram || '')}" style="width:100%;margin-top:4px;">
         </div>
@@ -520,6 +526,7 @@
     const body = {
       customer_name: document.getElementById('ed_name').value.trim() || undefined,
       customer_phone: document.getElementById('ed_phone').value.trim() || undefined,
+      customer_email: document.getElementById('ed_email').value.trim() || null,
       customer_telegram: document.getElementById('ed_tg').value.trim() || undefined,
       delivery_address: document.getElementById('ed_address').value.trim() || undefined,
       delivery_service: document.getElementById('ed_service').value || null,

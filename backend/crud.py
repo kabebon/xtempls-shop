@@ -496,6 +496,7 @@ async def create_order(db: AsyncSession, data: OrderCreate) -> Order:
         tg_user_chat_id=data.tg_user_chat_id,
         customer_name=data.customer_name,
         customer_phone=getattr(data, "customer_phone", None),
+        customer_email=getattr(data, "customer_email", None),
         customer_telegram=getattr(data, "customer_telegram", None),
         customer_contact=getattr(data, "customer_contact", None),
         delivery_address=getattr(data, "delivery_address", None),
@@ -681,7 +682,7 @@ async def update_order_admin(db: AsyncSession, order_id: int, data) -> Optional[
             raise ValueError(f"Неверный payment_status: {payload['payment_status']}")
 
     # Тримим строки
-    for k in ("customer_name", "customer_phone", "customer_telegram", "delivery_service"):
+    for k in ("customer_name", "customer_phone", "customer_email", "customer_telegram", "delivery_service"):
         if k in payload and payload[k]:
             payload[k] = str(payload[k]).strip()
     if "delivery_service" in payload:

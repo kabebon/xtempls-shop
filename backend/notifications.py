@@ -145,6 +145,9 @@ async def notify_manager_new_order(order) -> bool:
         contact_lines = contact_lines.rstrip("\n")
     else:
         contact_lines = f"📞 <b>Контакт:</b> {html_escape(legacy or '')}"
+    email = getattr(order, "customer_email", None)
+    if email:
+        contact_lines += f"\n✉️ <b>Почта:</b> {html_escape(email)}"
 
     text = (
         f"{type_label}\n\n"

@@ -94,6 +94,11 @@ async def create_order(
                 status_code=400,
                 detail="Выберите службу доставки: 5Post, Яндекс, Ozon или СДЭК",
             )
+        if not data.customer_email:
+            raise HTTPException(
+                status_code=400,
+                detail="Укажите e-mail — на него придёт чек",
+            )
     else:
         # Design requests have no shipping.
         data.delivery_address = None

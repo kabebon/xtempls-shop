@@ -139,17 +139,40 @@ def _receipt_kind() -> str:
     return "54fz"
 
 
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _receipt_email(raw: Optional[str]) -> Optional[str]:
+    email = (raw or "").strip().lower()
+    if not email or len(email) > 200 or not _EMAIL_RE.match(email):
+        return None
+    return email
+
+
 def _receipt_customer(order: Order) -> Optional[dict]:
+    """Контакт для чека. «Чеки от ЮKassa» уходят только на почту."""
+    email = _receipt_email(getattr(order, "customer_email", None))
     phone = _receipt_phone(getattr(order, "customer_phone", None)) or _receipt_phone(
         getattr(order, "customer_contact", None)
     )
-    if not phone:
+    if _receipt_kind() == "54fz" and not email:
         logger.warning(
-            "ЮKassa: чеки включены, но у заказа %s нет телефона — платёж без чека",
+            "ЮKassa: чеки включены, но у заказа %s нет почты — платёж без чека",
             order.id,
         )
         return None
-    return {"phone": phone}
+    customer: dict = {}
+    if email:
+        customer["email"] = email
+    if phone:
+        customer["phone"] = phone
+    if not customer:
+        logger.warning(
+            "ЮKassa: чеки включены, но у заказа %s нет почты и телефона — платёж без чека",
+            order.id,
+        )
+        return None
+    return customer
 
 
 def _receipt(order: Order, amount: Decimal) -> Optional[dict]:
@@ -297,7 +320,7 @@ async def _request_payment(order: Order) -> Optional[dict]:
     }
     receipt = _receipt(order, amount)
     if settings.yookassa_receipts and receipt is None:
-        _set_payment_error("Для чека нужен телефон в формате +7. Без него ЮKassa не откроет оплату.")
+        _set_payment_error("Для чека нужен e-mail. Без него ЮKassa не откроет оплату.")
         return None
     if receipt:
         payload["receipt"] = receipt
@@ -479,6 +502,9 @@ async def _notify_manager_paid(order: Order, payment_id: str):
         contact_lines = contact_lines.rstrip("\n")
     else:
         contact_lines = f"📞 <b>Контакт:</b> {html_escape(legacy or '')}"
+    email = getattr(order, "customer_email", None)
+    if email:
+        contact_lines += f"\n✉️ <b>Почта:</b> {html_escape(email)}"
 
     text = (
         f"💚 <b>Заказ #{order.id} ОПЛАЧЕН!</b>\n\n"

@@ -427,6 +427,7 @@ function orderCard(o) {
   }
   const contactParts = [];
   if (o.customer_phone) contactParts.push(`📞 ${escapeHtml(o.customer_phone)}`);
+  if (o.customer_email) contactParts.push(`✉️ ${escapeHtml(o.customer_email)}`);
   if (o.customer_telegram) contactParts.push(`💬 @${escapeHtml(String(o.customer_telegram).replace('@', ''))}`);
   if (contactParts.length) meta.push(`<div class="order-meta-line">${contactParts.join(' &nbsp; ')}</div>`);
   if (o.comment) meta.push(`<div class="order-meta-line">📝 ${escapeHtml(o.comment)}</div>`);
